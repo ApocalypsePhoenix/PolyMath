@@ -1,12 +1,14 @@
 <?php
 /**
  * PolyMath Core Configuration
- * Fixed: Robust Session Persistence (1 Year) to prevent random logouts
+ * Enforces session persistence and auto-migration for new features
  */
 
+// 1. Session Persistence (1 Year)
 $session_lifetime = 31536000; 
 ini_set('session.gc_maxlifetime', $session_lifetime);
 ini_set('session.cookie_lifetime', $session_lifetime);
+ini_set('session.use_only_cookies', 1);
 
 session_set_cookie_params([
     'lifetime' => $session_lifetime,
@@ -39,9 +41,12 @@ $options = [
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
     
-    // Auto-Migrations to ensure SQL tables match the code
+    // --- SELF-HEALING DATABASE MIGRATIONS ---
+    // Ensure quizzes table has is_published column
     $pdo->exec("ALTER TABLE `quizzes` ADD COLUMN IF NOT EXISTS `is_published` TINYINT(1) DEFAULT 0");
+    // Ensure user_answers table has chosen_option for feedback UI
     $pdo->exec("ALTER TABLE `user_answers` ADD COLUMN IF NOT EXISTS `chosen_option` CHAR(1) DEFAULT NULL");
+
 } catch (\PDOException $e) {
     die("Connection failed: " . $e->getMessage());
 }

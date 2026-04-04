@@ -1,7 +1,7 @@
 <?php
 /**
  * Robust Submit Quiz Handler
- * Fixed: Saves Level ID and Chosen Options to update history properly
+ * Correctly handles foreign keys and logs specific student choices
  */
 require_once 'db.php';
 
@@ -18,33 +18,38 @@ if ($data && isset($_SESSION['user_id'])) {
     try {
         $pdo->beginTransaction();
         
-        // Fetch level_id to satisfy foreign key constraints
+        // Fetch level_id to satisfy SQL constraint for quiz_attempts
         $stmtLvl = $pdo->prepare("SELECT level_id FROM quizzes WHERE quiz_id = ?");
         $stmtLvl->execute([$quiz_id]);
         $level_id = $stmtLvl->fetchColumn();
 
-        // Insert mission attempt
+        if (!$level_id) throw new Exception("Invalid Quiz ID");
+
+        // Insert into quiz_attempts
         $stmt = $pdo->prepare("INSERT INTO quiz_attempts (user_id, quiz_id, level_id, score, total_questions, time_taken_seconds) VALUES (?, ?, ?, ?, ?, ?)");
         $stmt->execute([$user_id, $quiz_id, $level_id, $score, $total, $time]);
         $attempt_id = $pdo->lastInsertId();
 
-        // Insert individual answer data for Intelligence Report
+        // Insert individual question records with chosen_option
         $stmtAnswer = $pdo->prepare("INSERT INTO user_answers (attempt_id, question_id, is_correct, chosen_option) VALUES (?, ?, ?, ?)");
         foreach($answers as $ans) {
             $stmtAnswer->execute([
                 $attempt_id, 
                 $ans['qid'], 
                 $ans['correct'] ? 1 : 0,
-                $ans['chosen']
+                $ans['chosen'] // Logs A, B, C, or D
             ]);
         }
 
         $pdo->commit();
         echo json_encode(['status' => 'success', 'attempt_id' => $attempt_id]);
     } catch (Exception $e) {
-        $pdo->rollBack();
+        if ($pdo->inTransaction()) $pdo->rollBack();
         http_response_code(500);
         echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
     }
+} else {
+    http_response_code(400);
+    echo json_encode(['status' => 'error', 'message' => 'Invalid session or payload']);
 }
 ?>
