@@ -1,13 +1,20 @@
 <?php
 /**
  * PolyMath Configuration
- * Linked to: https://polymath.arcadiusengine.xyz/php/
+ * Enforces 1-year session persistence
  */
 
-// Prevent session timeouts (Set to 1 year)
 $session_lifetime = 31536000; 
 ini_set('session.gc_maxlifetime', $session_lifetime);
-session_set_cookie_params($session_lifetime);
+ini_set('session.cookie_lifetime', $session_lifetime);
+session_set_cookie_params([
+    'lifetime' => $session_lifetime,
+    'path' => '/',
+    'domain' => '',
+    'secure' => true,
+    'httponly' => true,
+    'samesite' => 'Lax'
+]);
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
