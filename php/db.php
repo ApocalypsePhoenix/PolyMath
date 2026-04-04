@@ -1,10 +1,18 @@
 <?php
 /**
- * PolyMath Database Connection Configuration
- * Directory: public_html/polymath.arcadiusengine.xyz/php
+ * PolyMath Configuration
+ * Linked to: https://polymath.arcadiusengine.xyz/php/
  */
 
-// Since files are in the /php/ subdirectory, we update the BASE_URL accordingly
+// Prevent session timeouts (Set to 1 year)
+$session_lifetime = 31536000; 
+ini_set('session.gc_maxlifetime', $session_lifetime);
+session_set_cookie_params($session_lifetime);
+
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 define('BASE_URL', 'https://polymath.arcadiusengine.xyz/php/');
 
 $host = 'localhost'; 
@@ -23,6 +31,6 @@ $options = [
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
 } catch (\PDOException $e) {
-    die("Database connection failed. Please contact admin at polymath.arcadiusengine.xyz");
+    die("Connection failed: " . $e->getMessage());
 }
 ?>

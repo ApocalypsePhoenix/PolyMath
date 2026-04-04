@@ -1,34 +1,36 @@
 <?php
-session_start();
 require_once 'db.php';
 
-// Access Control
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'student') {
-    http_response_code(403);
-    exit();
-}
-
-// Get the JSON data from the request
 $data = json_decode(file_get_contents('php://input'), true);
 
-if ($data) {
+if ($data && isset($_SESSION['user_id'])) {
     $user_id = $_SESSION['user_id'];
-    $level_id = (int)$data['level_id'];
+    $quiz_id = (int)$data['quiz_id'];
     $score = (int)$data['score'];
-    $total_questions = (int)$data['total_questions'];
-    $time_taken = (int)$data['time_taken'];
+    $total = (int)$data['total_questions'];
+    $time = (int)$data['time_taken'];
+    
+    // We also need the individual answers list from the JS
+    $answers = $data['answers']; // Expected format: [{qid: 1, correct: true}, ...]
 
     try {
-        $stmt = $pdo->prepare("INSERT INTO quiz_attempts (user_id, level_id, score, total_questions, time_taken_seconds) 
-                               VALUES (?, ?, ?, ?, ?)");
-        $stmt->execute([$user_id, $level_id, $score, $total_questions, $time_taken]);
+        $pdo->beginTransaction();
         
-        echo json_encode(['status' => 'success']);
-    } catch (PDOException $e) {
+        $stmt = $pdo->prepare("INSERT INTO quiz_attempts (user_id, quiz_id, score, total_questions, time_taken_seconds) VALUES (?, ?, ?, ?, ?)");
+        $stmt->execute([$user_id, $quiz_id, $score, $total, $time]);
+        $attempt_id = $pdo->lastInsertId();
+
+        $stmtAnswer = $pdo->prepare("INSERT INTO user_answers (attempt_id, question_id, is_correct) VALUES (?, ?, ?)");
+        foreach($answers as $ans) {
+            $stmtAnswer->execute([$attempt_id, $ans['qid'], $ans['correct'] ? 1 : 0]);
+        }
+
+        $pdo->commit();
+        echo json_encode(['status' => 'success', 'attempt_id' => $attempt_id]);
+    } catch (Exception $e) {
+        $pdo->rollBack();
         http_response_code(500);
-        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+        echo json_encode(['status' => 'error']);
     }
-} else {
-    http_response_code(400);
 }
 ?>
