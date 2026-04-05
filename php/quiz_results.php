@@ -1,5 +1,4 @@
 <?php
-session_start();
 require_once 'db.php';
 
 if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit(); }
@@ -19,22 +18,34 @@ $attempt = $stmt->fetch();
 
 if (!$attempt) { header("Location: student_dashboard.php"); exit(); }
 
-// Fetch Questions + Specific Student Choices for this Attempt
-$stmt = $pdo->prepare("
-    SELECT q.*, ua.chosen_option, ua.is_correct 
-    FROM questions q 
-    JOIN user_answers ua ON q.question_id = ua.question_id 
-    WHERE ua.attempt_id = ?
-");
-$stmt->execute([$attempt_id]);
-$questions = $stmt->fetchAll();
+// Decode JSON answers from memory
+$answers_data = json_decode($attempt['answers_json'], true) ?: [];
+$student_choices = [];
+foreach($answers_data as $ans) {
+    $student_choices[$ans['qid']] = $ans;
+}
+
+// Fetch only the specific questions linked to this quiz attempt
+$stmt = $pdo->prepare("SELECT * FROM questions WHERE quiz_id = ?");
+$stmt->execute([$attempt['quiz_id']]);
+$all_quiz_questions = $stmt->fetchAll();
+
+$questions = [];
+foreach($all_quiz_questions as $q) {
+    if(isset($student_choices[$q['question_id']])) {
+        // Map the stored JSON data onto the question object
+        $q['chosen_option'] = $student_choices[$q['question_id']]['chosen'];
+        $q['is_correct'] = $student_choices[$q['question_id']]['correct'];
+        $questions[] = $q;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PolyMath - Mission Summary</title>
+    <title>PolyMath - Quiz Summary</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -45,7 +56,7 @@ $questions = $stmt->fetchAll();
 <body class="pb-12">
     <nav class="poly-gradient text-white p-5 shadow-xl">
         <div class="max-w-5xl mx-auto flex justify-between items-center">
-            <h1 class="text-2xl font-black italic tracking-tighter uppercase">MISSION RESULTS</h1>
+            <h1 class="text-2xl font-black italic tracking-tighter uppercase">QUIZ RESULTS</h1>
             <a href="student_dashboard.php" class="bg-white/20 hover:bg-white/30 px-6 py-2 rounded-xl text-xs font-black transition-all">BACK TO HUB</a>
         </div>
     </nav>

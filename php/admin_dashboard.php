@@ -1,5 +1,4 @@
 <?php
-session_start();
 require_once 'db.php';
 
 // Access Control
@@ -29,22 +28,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if ($action === 'add_class') {
             $pdo->prepare("INSERT INTO classes (class_name) VALUES (?)")->execute([trim($_POST['new_class_name'])]);
-            $message = "Class created!";
+            $message = "Group created!";
         } elseif ($action === 'edit_class') {
             $pdo->prepare("UPDATE classes SET class_name=? WHERE class_id=?")->execute([trim($_POST['class_name']), $_POST['class_id']]);
-            $message = "Class updated!";
+            $message = "Group updated!";
         } elseif ($action === 'delete_class') {
             $pdo->prepare("DELETE FROM classes WHERE class_id = ?")->execute([$_POST['class_id']]);
-            $message = "Class deleted!";
+            $message = "Group deleted!";
         } elseif ($action === 'create_quiz' || $action === 'edit_quiz') {
             if ($action === 'create_quiz') {
                 $pdo->prepare("INSERT INTO quizzes (quiz_name, level_id, is_timed, time_limit, is_published) VALUES (?, ?, ?, ?, 0)")
                     ->execute([trim($_POST['quiz_name']), $_POST['level_id'], isset($_POST['is_timed'])?1:0, (int)$_POST['time_limit']]);
-                $message = "Mission Created!";
+                $message = "Quiz Created!";
             } else {
                 $pdo->prepare("UPDATE quizzes SET quiz_name=?, level_id=?, is_timed=?, time_limit=? WHERE quiz_id=?")
                     ->execute([trim($_POST['quiz_name']), $_POST['level_id'], isset($_POST['is_timed'])?1:0, (int)$_POST['time_limit'], $_POST['quiz_id']]);
-                $message = "Mission Updated!";
+                $message = "Quiz Updated!";
             }
         } elseif ($action === 'toggle_publish') {
             $status = (int)$_POST['publish_status'];
@@ -55,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($cnt->fetchColumn() < 10) throw new Exception("Quizzes need 10 questions to go LIVE!");
             }
             $pdo->prepare("UPDATE quizzes SET is_published = ? WHERE quiz_id = ?")->execute([$status, $id]);
-            $message = $status ? "MISSION LIVE! 🚀" : "Saved as Draft.";
+            $message = $status ? "QUIZ LIVE! 🚀" : "Saved as Draft.";
         } elseif ($action === 'add_question' || $action === 'edit_question') {
             $qid = $_POST['quiz_id'];
             $q_img = pm_upload($_POST['cropped_question_image'] ?? '');
@@ -90,18 +89,108 @@ if (isset($_SESSION['admin_msg'])) { $message = $_SESSION['admin_msg']; $message
 // --- DATA FETCHING ---
 $levels = $pdo->query("SELECT * FROM levels ORDER BY difficulty_rank ASC")->fetchAll();
 $classes = $pdo->query("SELECT c.*, (SELECT COUNT(*) FROM users u WHERE u.class_id = c.class_id AND u.role = 'student') as student_count FROM classes c ORDER BY class_name ASC")->fetchAll();
-$quizzes = $pdo->query("SELECT q.*, l.level_name, (SELECT COUNT(*) FROM questions qn WHERE qn.quiz_id = q.quiz_id) as q_count FROM quizzes q JOIN levels l ON q.level_id = l.level_id ORDER BY q.created_at DESC")->fetchAll();
+$quizzes = $pdo->query("SELECT q.*, l.level_name, l.difficulty_rank, (SELECT COUNT(*) FROM questions qn WHERE qn.quiz_id = q.quiz_id) as q_count FROM quizzes q JOIN levels l ON q.level_id = l.level_id ORDER BY q.created_at DESC")->fetchAll();
 
-// Advanced Analytics
-$q_stats = $pdo->query("
-    SELECT qn.question_text, q.quiz_name, 
-    COUNT(ua.answer_id) as attempts, SUM(ua.is_correct) as correct,
-    COUNT(DISTINCT qa.user_id) as student_participation
-    FROM questions qn JOIN quizzes q ON qn.quiz_id = q.quiz_id 
-    JOIN user_answers ua ON qn.question_id = ua.question_id
-    JOIN quiz_attempts qa ON ua.attempt_id = qa.attempt_id
-    GROUP BY qn.question_id
+// --- INTELLIGENCE HUB DATA PREP ---
+// 1. Map Questions
+$questions_raw = $pdo->query("SELECT question_id, quiz_id, question_text FROM questions")->fetchAll();
+$questions_by_quiz = [];
+foreach($questions_raw as $q) { $questions_by_quiz[$q['quiz_id']][] = $q; }
+
+// 2. Map Quizzes
+$quiz_info = [];
+foreach($quizzes as $q) { $quiz_info[$q['quiz_id']] = $q; }
+
+// 3. Get best attempt per user per quiz (Highest Score Filter)
+$attempts_raw = $pdo->query("
+    SELECT qa.attempt_id, qa.user_id, qa.quiz_id, qa.score, qa.answers_json, u.class_id 
+    FROM quiz_attempts qa
+    JOIN users u ON qa.user_id = u.user_id
+    WHERE qa.answers_json IS NOT NULL AND u.role = 'student'
 ")->fetchAll();
+
+$best_attempts = []; // Structure: [class_id][quiz_id][user_id] = highest_attempt
+foreach($attempts_raw as $att) {
+    $cid = $att['class_id'];
+    $qid = $att['quiz_id'];
+    $uid = $att['user_id'];
+    
+    if(!isset($best_attempts[$cid][$qid][$uid])) {
+        $best_attempts[$cid][$qid][$uid] = $att;
+    } else {
+        // If this retake has a higher score, overwrite it
+        if($att['score'] > $best_attempts[$cid][$qid][$uid]['score']) {
+            $best_attempts[$cid][$qid][$uid] = $att;
+        }
+    }
+}
+
+// 4. Build deeply nested JSON array for JS frontend
+$intelligence_data = [];
+foreach($classes as $cls) {
+    $cid = $cls['class_id'];
+    $class_node = [
+        'class_id' => $cid,
+        'class_name' => $cls['class_name'],
+        'student_count' => $cls['student_count'],
+        'quizzes' => []
+    ];
+    
+    if(isset($best_attempts[$cid])) {
+        $class_quizzes = [];
+        foreach($best_attempts[$cid] as $qid => $user_attempts) {
+            if(!isset($quiz_info[$qid])) continue;
+            
+            $quiz_node = [
+                'quiz_id' => $qid,
+                'quiz_name' => $quiz_info[$qid]['quiz_name'],
+                'level_name' => $quiz_info[$qid]['level_name'],
+                'difficulty_rank' => $quiz_info[$qid]['difficulty_rank'],
+                'participation' => count($user_attempts),
+                'questions' => []
+            ];
+            
+            $q_stats = [];
+            if(isset($questions_by_quiz[$qid])) {
+                foreach($questions_by_quiz[$qid] as $q) {
+                    $q_stats[$q['question_id']] = [
+                        'question_id' => $q['question_id'],
+                        'question_text' => $q['question_text'],
+                        'attempts' => 0,
+                        'correct' => 0
+                    ];
+                }
+            }
+
+            // Tally up highest score JSON arrays
+            foreach($user_attempts as $uid => $att) {
+                $answers = json_decode($att['answers_json'], true) ?: [];
+                foreach($answers as $ans) {
+                    $ans_qid = $ans['qid'];
+                    if(isset($q_stats[$ans_qid])) {
+                        $q_stats[$ans_qid]['attempts']++;
+                        if($ans['correct']) $q_stats[$ans_qid]['correct']++;
+                    }
+                }
+            }
+            
+            foreach($q_stats as $qs) {
+                $qs['accuracy'] = ($qs['attempts'] > 0) ? round(($qs['correct'] / $qs['attempts']) * 100) : 0;
+                $quiz_node['questions'][] = $qs;
+            }
+            $class_quizzes[] = $quiz_node;
+        }
+        
+        // Sort quizzes Easy -> Intermediate -> Expert
+        usort($class_quizzes, function($a, $b) {
+            return $a['difficulty_rank'] <=> $b['difficulty_rank'];
+        });
+        
+        $class_node['quizzes'] = $class_quizzes;
+    }
+    $intelligence_data[] = $class_node;
+}
+$intel_json = json_encode($intelligence_data);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -150,42 +239,8 @@ $q_stats = $pdo->query("
 
         <!-- Intelligence Section -->
         <section id="sect-analytics" class="tab-content hidden space-y-12">
-            <div class="bg-white rounded-[3rem] p-12 shadow-2xl border-4 border-indigo-50">
-                <h2 class="text-3xl font-black text-gray-800 italic uppercase mb-12">Intelligence Hub</h2>
-                
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-                    <?php foreach($classes as $cl): ?>
-                    <div class="bg-indigo-50 p-6 rounded-3xl border-2 border-white shadow-sm text-center">
-                        <p class="text-[10px] font-black text-gray-400 uppercase mb-2"><?php echo htmlspecialchars($cl['class_name']); ?></p>
-                        <p class="text-4xl font-black text-indigo-700"><?php echo $cl['student_count']; ?></p>
-                        <p class="text-[10px] font-bold text-indigo-300 mt-1 uppercase">Students Enrolled</p>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-
-                <div class="space-y-8">
-                    <h3 class="text-xl font-black flex items-center gap-3">📊 Accuracy Analytics per Question</h3>
-                    <?php foreach($q_stats as $st): 
-                        $pct = round(($st['correct'] / $st['attempts']) * 100);
-                        $col = ($pct > 75) ? 'bg-green-500' : (($pct > 40) ? 'bg-amber-500' : 'bg-red-500');
-                    ?>
-                    <div class="bg-gray-50 p-6 rounded-[2rem] border flex flex-col md:flex-row gap-8 items-center hover:bg-white transition-all">
-                        <div class="md:w-1/3">
-                            <p class="text-[10px] font-black text-gray-400 uppercase mb-1"><?php echo htmlspecialchars($st['quiz_name']); ?></p>
-                            <p class="font-bold text-gray-700 leading-tight">"<?php echo htmlspecialchars($st['question_text']); ?>"</p>
-                        </div>
-                        <div class="flex-grow w-full">
-                            <div class="flex justify-between items-end mb-2">
-                                <span class="text-[10px] font-black text-indigo-600 uppercase"><?php echo $pct; ?>% Accuracy</span>
-                                <span class="text-[10px] font-black text-gray-400 uppercase"><?php echo $st['student_participation']; ?> Participated</span>
-                            </div>
-                            <div class="w-full h-4 bg-gray-200 rounded-full overflow-hidden shadow-inner border border-gray-100">
-                                <div class="<?php echo $col; ?> h-full rounded-full transition-all duration-1000" style="width: <?php echo $pct; ?>%"></div>
-                            </div>
-                        </div>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
+            <div class="bg-white rounded-[3rem] p-12 shadow-2xl border-4 border-indigo-50" id="intel-container">
+                <!-- JS will inject drill-down views here -->
             </div>
         </section>
 
@@ -193,11 +248,11 @@ $q_stats = $pdo->query("
         <section id="sect-quizzes" class="tab-content space-y-12">
             <div id="list-view" class="grid grid-cols-1 lg:grid-cols-3 gap-10">
                 <div class="bg-white rounded-[2rem] p-8 shadow-xl border-b-8 border-indigo-600 h-fit">
-                    <h2 class="text-2xl font-black mb-6 text-indigo-700" id="quiz-form-title">Mission Settings</h2>
+                    <h2 class="text-2xl font-black mb-6 text-indigo-700" id="quiz-form-title">Quiz Settings</h2>
                     <form action="admin_dashboard.php" method="POST" class="space-y-5">
                         <input type="hidden" name="action" value="create_quiz" id="quiz-action">
                         <input type="hidden" name="quiz_id" id="quiz-id">
-                        <input type="text" name="quiz_name" id="quiz-name" required placeholder="Mission Name" class="w-full px-5 py-3 rounded-2xl border-2 font-bold outline-none focus:border-indigo-500">
+                        <input type="text" name="quiz_name" id="quiz-name" required placeholder="Quiz Name" class="w-full px-5 py-3 rounded-2xl border-2 font-bold outline-none focus:border-indigo-500">
                         <select name="level_id" id="quiz-level" class="w-full px-5 py-3 rounded-2xl border-2 font-bold">
                             <?php foreach($levels as $l): ?><option value="<?php echo $l['level_id']; ?>"><?php echo $l['level_name']; ?></option><?php endforeach; ?>
                         </select>
@@ -211,7 +266,7 @@ $q_stats = $pdo->query("
 
                 <div class="lg:col-span-2 bg-white rounded-[2rem] shadow-xl border-b-8 border-purple-700 overflow-hidden">
                     <table class="w-full text-left">
-                        <thead><tr class="bg-gray-50 text-[10px] font-black uppercase text-gray-400"><th class="px-8 py-5">Mission</th><th class="px-8 py-5 text-center">Qs</th><th class="px-8 py-5">Status</th><th class="px-8 py-5 text-right">Actions</th></tr></thead>
+                        <thead><tr class="bg-gray-50 text-[10px] font-black uppercase text-gray-400"><th class="px-8 py-5">Quiz</th><th class="px-8 py-5 text-center">Qs</th><th class="px-8 py-5">Status</th><th class="px-8 py-5 text-right">Actions</th></tr></thead>
                         <tbody class="divide-y">
                             <?php foreach($quizzes as $q): ?>
                             <tr class="hover:bg-gray-50 transition-all">
@@ -232,7 +287,7 @@ $q_stats = $pdo->query("
             <!-- Builder Hub -->
             <div id="builder-hub" class="hidden bg-white rounded-[3rem] p-10 shadow-2xl border-4 border-[#46178f]">
                 <div class="flex justify-between items-center mb-10 pb-6 border-b-2">
-                    <h2 class="text-3xl font-black text-gray-800">Mission Builder: <span id="managed-name" class="text-[#46178f]"></span></h2>
+                    <h2 class="text-3xl font-black text-gray-800">Quiz Builder: <span id="managed-name" class="text-[#46178f]"></span></h2>
                     <div class="flex gap-4">
                         <form action="admin_dashboard.php" method="POST">
                             <input type="hidden" name="action" value="toggle_publish"><input type="hidden" name="quiz_id" id="pub-id"><input type="hidden" name="publish_status" id="pub-status">
@@ -246,7 +301,7 @@ $q_stats = $pdo->query("
                     <form action="admin_dashboard.php" id="q-form" method="POST" class="space-y-6 bg-gray-50 p-8 rounded-[2rem] border-2">
                         <input type="hidden" name="action" value="add_question" id="q-action"><input type="hidden" name="quiz_id" id="q-quiz-id"><input type="hidden" name="question_id" id="q-id">
                         <input type="hidden" name="cropped_question_image" id="q-img-val"><input type="hidden" name="cropped_solution_image" id="s-img-val">
-                        <textarea name="question_text" id="q-text" placeholder="Mission question..." required class="w-full px-5 py-4 rounded-2xl border-2 font-bold h-32 focus:border-indigo-500 outline-none"></textarea>
+                        <textarea name="question_text" id="q-text" placeholder="Quiz question..." required class="w-full px-5 py-4 rounded-2xl border-2 font-bold h-32 focus:border-indigo-500 outline-none"></textarea>
                         <div class="grid grid-cols-2 gap-3">
                             <input type="text" name="option_a" id="q-a" placeholder="A" required class="px-5 py-3 rounded-xl border-2 font-bold text-red-600">
                             <input type="text" name="option_b" id="q-b" placeholder="B" required class="px-5 py-3 rounded-xl border-2 font-bold text-blue-600">
@@ -261,7 +316,7 @@ $q_stats = $pdo->query("
                             <button type="button" onclick="document.getElementById('f-s').click()" class="p-4 bg-white rounded-2xl border-2 border-dashed flex flex-col items-center"><span class="text-[9px] font-black opacity-30 uppercase">S Image</span><input type="file" id="f-s" class="hidden" onchange="initCrop(this, 's')"><div id="p-s" class="h-10 mt-2 hidden"><img src="" class="h-full"></div></button>
                         </div>
                         <textarea name="solution_text" id="q-sol" placeholder="Intelligence solution..." class="w-full px-5 py-4 rounded-2xl border-2 font-bold h-24"></textarea>
-                        <button type="submit" class="w-full kahoot-purple text-white py-4 rounded-2xl font-black shadow-xl">UPLOAD MISSION DATA</button>
+                        <button type="submit" class="w-full kahoot-purple text-white py-4 rounded-2xl font-black shadow-xl">UPLOAD QUIZ DATA</button>
                     </form>
                     <div class="xl:col-span-2 space-y-4 overflow-y-auto max-h-[800px] pr-4" id="questions-list"></div>
                 </div>
@@ -276,7 +331,7 @@ $q_stats = $pdo->query("
                     <form action="admin_dashboard.php" method="POST" class="space-y-4">
                         <input type="hidden" name="action" value="add_class" id="cl-action"><input type="hidden" name="class_id" id="cl-id">
                         <input type="text" name="new_class_name" id="cl-name" required placeholder="Academic Group" class="w-full px-5 py-4 rounded-2xl border-2 font-bold outline-none focus:border-green-500">
-                        <button type="submit" class="w-full kahoot-green text-white py-4 rounded-2xl font-black transition-all active:scale-95 shadow-lg">CREATE GROUP</button>
+                        <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white py-4 rounded-2xl font-black transition-all active:scale-95 shadow-lg">CREATE GROUP</button>
                     </form>
                 </div>
                 <div class="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -296,6 +351,7 @@ $q_stats = $pdo->query("
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
     <script>
+        // --- UI TOGGLES ---
         function showTab(t) {
             document.querySelectorAll('.tab-content').forEach(s => s.classList.add('hidden'));
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -303,8 +359,96 @@ $q_stats = $pdo->query("
             document.getElementById('tab-' + t).classList.add('active');
         }
 
+        // --- INTELLIGENCE HUB (DRILL-DOWN LOGIC) ---
+        const intelData = <?php echo $intel_json; ?>;
+
+        function renderIntelClasses() {
+            let html = `<h2 class="text-3xl font-black text-gray-800 italic uppercase mb-12">Intelligence Hub: Select a Group</h2><div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">`;
+            intelData.forEach((cls, idx) => {
+                html += `
+                <div onclick="renderIntelQuizzes(${idx})" class="bg-indigo-50 hover:bg-indigo-100 cursor-pointer p-6 rounded-3xl border-2 border-white shadow-sm text-center transition-all transform hover:-translate-y-1">
+                    <p class="text-xs font-black text-gray-500 uppercase mb-2">${cls.class_name}</p>
+                    <p class="text-4xl font-black text-indigo-700">${cls.student_count}</p>
+                    <p class="text-[10px] font-bold text-indigo-400 mt-1 uppercase">Students Enrolled</p>
+                </div>`;
+            });
+            html += `</div>`;
+            document.getElementById('intel-container').innerHTML = html;
+        }
+
+        function renderIntelQuizzes(classIdx) {
+            const cls = intelData[classIdx];
+            let html = `
+            <div class="flex items-center gap-4 mb-10">
+                <button onclick="renderIntelClasses()" class="px-5 py-2 bg-gray-200 hover:bg-gray-300 rounded-xl font-black text-xs uppercase transition-all">← Back</button>
+                <h2 class="text-3xl font-black text-gray-800 italic uppercase">${cls.class_name} Quizzes</h2>
+            </div>`;
+            
+            if(!cls.quizzes || cls.quizzes.length === 0) {
+                html += `<div class="p-10 text-center border-4 border-dashed rounded-3xl opacity-50"><p class="font-black text-xl uppercase">No quiz data yet.</p></div>`;
+            } else {
+                html += `<div class="grid grid-cols-1 md:grid-cols-3 gap-6">`;
+                cls.quizzes.forEach((quiz, qIdx) => {
+                    const col = quiz.level_name === 'Easy' ? 'border-green-500' : (quiz.level_name === 'Intermediate' ? 'border-amber-500' : 'border-red-500');
+                    html += `
+                    <div onclick="renderIntelStats(${classIdx}, ${qIdx})" class="bg-white hover:bg-gray-50 cursor-pointer p-6 rounded-[2rem] border border-b-8 shadow-sm transition-all transform hover:-translate-y-1 ${col}">
+                        <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-gray-100 text-gray-500">${quiz.level_name}</span>
+                        <h4 class="text-2xl font-black text-gray-800 mt-4">${quiz.quiz_name}</h4>
+                        <p class="text-[10px] font-bold text-gray-400 uppercase mt-2 tracking-tighter">${quiz.participation} Students Attempted</p>
+                    </div>`;
+                });
+                html += `</div>`;
+            }
+            document.getElementById('intel-container').innerHTML = html;
+        }
+
+        function renderIntelStats(classIdx, quizIdx) {
+            const cls = intelData[classIdx];
+            const quiz = cls.quizzes[quizIdx];
+            
+            let html = `
+            <div class="flex items-center gap-4 mb-10">
+                <button onclick="renderIntelQuizzes(${classIdx})" class="px-5 py-2 bg-gray-200 hover:bg-gray-300 rounded-xl font-black text-xs uppercase transition-all">← Back</button>
+                <h2 class="text-3xl font-black text-gray-800 italic uppercase">${cls.class_name} - ${quiz.quiz_name} Analytics</h2>
+            </div>
+            <div class="space-y-6">`;
+
+            if(!quiz.questions || quiz.questions.length === 0) {
+                 html += `<p class="font-bold text-gray-500 opacity-50 text-center italic">No question stats available.</p>`;
+            } else {
+                 quiz.questions.forEach(q => {
+                     const pct = q.accuracy;
+                     const col = (pct > 75) ? 'bg-green-500' : ((pct > 40) ? 'bg-amber-500' : 'bg-red-500');
+                     html += `
+                     <div class="bg-gray-50 p-6 rounded-[2rem] border flex flex-col md:flex-row gap-8 items-center hover:bg-white transition-all shadow-sm">
+                        <div class="md:w-1/3">
+                            <p class="font-bold text-gray-700 leading-tight">"${q.question_text}"</p>
+                        </div>
+                        <div class="flex-grow w-full">
+                            <div class="flex justify-between items-end mb-2">
+                                <span class="text-[10px] font-black text-indigo-600 uppercase">${pct}% Class Accuracy</span>
+                                <span class="text-[10px] font-black text-gray-400 uppercase">${q.attempts} Answers Extracted</span>
+                            </div>
+                            <div class="w-full h-4 bg-gray-200 rounded-full overflow-hidden shadow-inner border border-gray-100">
+                                <div class="${col} h-full rounded-full transition-all duration-1000" style="width: ${pct}%"></div>
+                            </div>
+                        </div>
+                    </div>`;
+                 });
+            }
+            html += `</div>`;
+            document.getElementById('intel-container').innerHTML = html;
+        }
+
+        // Initialize Intelligence Hub
+        document.addEventListener('DOMContentLoaded', () => {
+            if(document.getElementById('intel-container')) renderIntelClasses();
+        });
+
+
+        // --- CRUD LOGIC FOR FORMS ---
         function editQuiz(q) {
-            document.getElementById('quiz-form-title').innerText = "Update Mission";
+            document.getElementById('quiz-form-title').innerText = "Update Quiz";
             document.getElementById('quiz-action').value = "edit_quiz";
             document.getElementById('quiz-id').value = q.quiz_id;
             document.getElementById('quiz-name').value = q.quiz_name;
