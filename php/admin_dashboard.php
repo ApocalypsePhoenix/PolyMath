@@ -17,6 +17,7 @@ function pm_upload($base64, $existing = null) {
     $data = explode(',', $base64);
     $imgData = base64_decode($data[1]);
     $name = uniqid('asset_', true) . '.png';
+    // Directory relative to this file (php/uploads)
     if (!is_dir('uploads')) mkdir('uploads', 0777, true);
     file_put_contents('uploads/' . $name, $imgData);
     return $name;
@@ -57,17 +58,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = $status ? "QUIZ LIVE! 🚀" : "Saved as Draft.";
         } elseif ($action === 'add_question' || $action === 'edit_question') {
             $qid = $_POST['quiz_id'];
-            $q_img = pm_upload($_POST['cropped_question_image'] ?? '');
-            $s_img = pm_upload($_POST['cropped_solution_image'] ?? '');
             
             if ($action === 'add_question') {
+                $q_img = pm_upload($_POST['cropped_question_image'] ?? '');
+                $s_img = pm_upload($_POST['cropped_solution_image'] ?? '');
+                
                 $st = $pdo->prepare("SELECT level_id FROM quizzes WHERE quiz_id=?");
                 $st->execute([$qid]); $lvl = $st->fetchColumn();
                 $sql = "INSERT INTO questions (quiz_id, level_id, question_text, option_a, option_b, option_c, option_d, correct_option, solution_text, question_image, solution_image, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)";
                 $pdo->prepare($sql)->execute([$qid, $lvl, trim($_POST['question_text']), $_POST['option_a'], $_POST['option_b'], $_POST['option_c'], $_POST['option_d'], $_POST['correct_option'], $_POST['solution_text'], $q_img, $s_img, $_SESSION['user_id']]);
             } else {
-                $pdo->prepare("UPDATE questions SET question_text=?, option_a=?, option_b=?, option_c=?, option_d=?, correct_option=?, solution_text=? WHERE question_id=?")
-                    ->execute([trim($_POST['question_text']), $_POST['option_a'], $_POST['option_b'], $_POST['option_c'], $_POST['option_d'], $_POST['correct_option'], $_POST['solution_text'], $_POST['question_id']]);
+                // Fetch existing images so we don't overwrite them if no new image is provided
+                $st = $pdo->prepare("SELECT question_image, solution_image FROM questions WHERE question_id=?");
+                $st->execute([$_POST['question_id']]);
+                $existing = $st->fetch();
+                
+                $q_img = pm_upload($_POST['cropped_question_image'] ?? '', $existing['question_image']);
+                $s_img = pm_upload($_POST['cropped_solution_image'] ?? '', $existing['solution_image']);
+
+                $pdo->prepare("UPDATE questions SET question_text=?, option_a=?, option_b=?, option_c=?, option_d=?, correct_option=?, solution_text=?, question_image=?, solution_image=? WHERE question_id=?")
+                    ->execute([trim($_POST['question_text']), $_POST['option_a'], $_POST['option_b'], $_POST['option_c'], $_POST['option_d'], $_POST['correct_option'], $_POST['solution_text'], $q_img, $s_img, $_POST['question_id']]);
             }
             $message = "Question saved!";
         } elseif ($action === 'delete_quiz') {
@@ -93,7 +103,7 @@ $quizzes = $pdo->query("SELECT q.*, l.level_name, l.difficulty_rank, (SELECT COU
 
 // --- INTELLIGENCE HUB DATA PREP ---
 // 1. Map Questions
-$questions_raw = $pdo->query("SELECT question_id, quiz_id, question_text FROM questions")->fetchAll();
+$questions_raw = $pdo->query("SELECT question_id, quiz_id, question_text, question_image, solution_image FROM questions")->fetchAll();
 $questions_by_quiz = [];
 foreach($questions_raw as $q) { $questions_by_quiz[$q['quiz_id']][] = $q; }
 
@@ -156,6 +166,8 @@ foreach($classes as $cls) {
                     $q_stats[$q['question_id']] = [
                         'question_id' => $q['question_id'],
                         'question_text' => $q['question_text'],
+                        'question_image' => $q['question_image'],
+                        'solution_image' => $q['solution_image'],
                         'attempts' => 0,
                         'correct' => 0
                     ];
@@ -214,10 +226,12 @@ $intel_json = json_encode($intelligence_data);
 <body class="pb-12">
 
     <div id="cropModal">
-        <div class="bg-white rounded-[2rem] p-8 w-full max-w-2xl">
-            <h3 class="text-2xl font-black mb-4 text-[#46178f]">Crop Asset</h3>
-            <img id="cropTarget" src="" class="max-w-full rounded-2xl mb-6">
-            <div class="flex justify-end gap-4"><button onclick="closeCrop()" class="px-8 py-3 rounded-2xl bg-gray-200 font-bold">Cancel</button><button onclick="saveCrop()" class="px-8 py-3 rounded-2xl kahoot-purple text-white font-bold">Apply</button></div>
+        <div class="bg-white rounded-[2rem] p-8 w-full max-w-2xl flex flex-col max-h-[95vh]">
+            <h3 class="text-2xl font-black mb-4 text-[#46178f] shrink-0">Crop Asset</h3>
+            <div class="w-full h-[50vh] mb-6 bg-gray-100 rounded-2xl overflow-hidden relative">
+                <img id="cropTarget" src="" class="block max-w-full max-h-full mx-auto">
+            </div>
+            <div class="flex justify-end gap-4 shrink-0"><button onclick="closeCrop()" class="px-8 py-3 rounded-2xl bg-gray-200 font-bold">Cancel</button><button onclick="saveCrop()" class="px-8 py-3 rounded-2xl kahoot-purple text-white font-bold">Apply</button></div>
         </div>
     </div>
 
@@ -418,19 +432,75 @@ $intel_json = json_encode($intelligence_data);
             } else {
                  quiz.questions.forEach(q => {
                      const pct = q.accuracy;
-                     const col = (pct > 75) ? 'bg-green-500' : ((pct > 40) ? 'bg-amber-500' : 'bg-red-500');
+                     const wrong = q.attempts - q.correct;
+                     
+                     // Health Status Badges
+                     let badgeStyle, badgeText, barCol;
+                     if (pct > 75) {
+                         badgeStyle = 'bg-green-100 text-green-700 border-green-200';
+                         badgeText = 'Mastered';
+                         barCol = 'bg-green-500';
+                     } else if (pct > 40) {
+                         badgeStyle = 'bg-amber-100 text-amber-700 border-amber-200';
+                         badgeText = 'Review Needed';
+                         barCol = 'bg-amber-500';
+                     } else {
+                         badgeStyle = 'bg-red-100 text-red-700 border-red-200';
+                         badgeText = 'Critical Alert';
+                         barCol = 'bg-red-500';
+                     }
+                     
+                     // Enhanced Image Display Layout
+                     let imgHtml = '';
+                     if (q.question_image || q.solution_image) {
+                         imgHtml += `<div class="flex flex-col md:flex-row gap-4 mb-6">`;
+                         if (q.question_image) {
+                             imgHtml += `<div class="flex-1 bg-gray-50 rounded-[1.5rem] p-4 border border-gray-200 flex flex-col justify-center"><p class="text-[10px] font-black text-gray-400 uppercase mb-3 text-center tracking-widest">Question Asset</p><img src="uploads/${q.question_image}" class="max-h-32 mx-auto rounded-xl shadow-sm object-contain bg-white"></div>`;
+                         }
+                         if (q.solution_image) {
+                             imgHtml += `<div class="flex-1 bg-indigo-50/50 rounded-[1.5rem] p-4 border border-indigo-100 flex flex-col justify-center"><p class="text-[10px] font-black text-indigo-400 uppercase mb-3 text-center tracking-widest">Solution Asset</p><img src="uploads/${q.solution_image}" class="max-h-32 mx-auto rounded-xl shadow-sm object-contain bg-white"></div>`;
+                         }
+                         imgHtml += `</div>`;
+                     }
+
                      html += `
-                     <div class="bg-gray-50 p-6 rounded-[2rem] border flex flex-col md:flex-row gap-8 items-center hover:bg-white transition-all shadow-sm">
-                        <div class="md:w-1/3">
-                            <p class="font-bold text-gray-700 leading-tight">"${q.question_text}"</p>
-                        </div>
-                        <div class="flex-grow w-full">
-                            <div class="flex justify-between items-end mb-2">
-                                <span class="text-[10px] font-black text-indigo-600 uppercase">${pct}% Class Accuracy</span>
-                                <span class="text-[10px] font-black text-gray-400 uppercase">${q.attempts} Answers Extracted</span>
+                     <div class="bg-white p-8 rounded-[2.5rem] border border-gray-200 shadow-sm relative overflow-hidden transition-all hover:shadow-xl hover:-translate-y-1 hover:border-indigo-200 group">
+                        <!-- Decorative left color band -->
+                        <div class="absolute left-0 top-0 bottom-0 w-2 ${barCol} opacity-80 group-hover:opacity-100 transition-opacity"></div>
+                        
+                        <div class="pl-4 flex flex-col h-full">
+                            <!-- Top Section: Text & Badge -->
+                            <div class="flex flex-col md:flex-row justify-between items-start gap-6 mb-6">
+                                <h4 class="text-xl font-black text-gray-800 leading-snug">"${q.question_text}"</h4>
+                                <span class="px-4 py-2 rounded-full border text-[10px] font-black uppercase tracking-widest whitespace-nowrap shrink-0 ${badgeStyle}">
+                                    ${badgeText} &bull; ${pct}%
+                                </span>
                             </div>
-                            <div class="w-full h-4 bg-gray-200 rounded-full overflow-hidden shadow-inner border border-gray-100">
-                                <div class="${col} h-full rounded-full transition-all duration-1000" style="width: ${pct}%"></div>
+
+                            <!-- Assets Section -->
+                            ${imgHtml}
+
+                            <!-- Stats Grid -->
+                            <div class="bg-gray-50 rounded-[2rem] p-6 border border-gray-100 mt-auto">
+                                <div class="grid grid-cols-3 gap-4 mb-5 text-center divide-x divide-gray-200">
+                                    <div>
+                                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Correct</p>
+                                        <p class="text-3xl font-black text-green-500">${q.correct}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Incorrect</p>
+                                        <p class="text-3xl font-black text-red-500">${wrong}</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total</p>
+                                        <p class="text-3xl font-black text-gray-700">${q.attempts}</p>
+                                    </div>
+                                </div>
+                                
+                                <!-- Progress Bar -->
+                                <div class="w-full h-3 bg-gray-200 rounded-full overflow-hidden shadow-inner">
+                                    <div class="${barCol} h-full rounded-full transition-all duration-1000" style="width: ${pct}%"></div>
+                                </div>
                             </div>
                         </div>
                     </div>`;
@@ -472,6 +542,15 @@ $intel_json = json_encode($intelligence_data);
             document.getElementById('builder-hub').classList.remove('hidden');
             document.getElementById('builder-hub').scrollIntoView({behavior:'smooth'});
             
+            // Reset the form just in case a user was previously editing a question
+            document.getElementById('q-form').reset();
+            document.getElementById('q-action').value = "add_question";
+            document.getElementById('q-id').value = "";
+            document.getElementById('q-img-val').value = "";
+            document.getElementById('s-img-val').value = "";
+            document.getElementById('p-q').classList.add('hidden');
+            document.getElementById('p-s').classList.add('hidden');
+            
             const btn = document.getElementById('pub-btn'); const val = document.getElementById('pub-status');
             if(qCount >= 10) {
                 btn.classList.remove('hidden');
@@ -496,7 +575,26 @@ $intel_json = json_encode($intelligence_data);
             document.getElementById('q-text').value = q.question_text; document.getElementById('q-a').value = q.option_a;
             document.getElementById('q-b').value = q.option_b; document.getElementById('q-c').value = q.option_c;
             document.getElementById('q-d').value = q.option_d; document.getElementById('q-correct').value = q.correct_option;
-            document.getElementById('q-sol').value = q.solution_text; document.getElementById('q-form').scrollIntoView({behavior:'smooth'});
+            document.getElementById('q-sol').value = q.solution_text; 
+            
+            // Clear current crop values
+            document.getElementById('q-img-val').value = "";
+            document.getElementById('s-img-val').value = "";
+            
+            // Load existing previews if available
+            const pq = document.getElementById('p-q');
+            if (q.question_image) {
+                pq.classList.remove('hidden');
+                pq.querySelector('img').src = 'uploads/' + q.question_image;
+            } else { pq.classList.add('hidden'); }
+            
+            const ps = document.getElementById('p-s');
+            if (q.solution_image) {
+                ps.classList.remove('hidden');
+                ps.querySelector('img').src = 'uploads/' + q.solution_image;
+            } else { ps.classList.add('hidden'); }
+
+            document.getElementById('q-form').scrollIntoView({behavior:'smooth'});
         }
 
         let cropper; let currType;
@@ -504,18 +602,28 @@ $intel_json = json_encode($intelligence_data);
             if (input.files && input.files[0]) {
                 currType = type; const reader = new FileReader();
                 reader.onload = (e) => {
-                    document.getElementById('cropTarget').src = e.target.result;
+                    const img = document.getElementById('cropTarget');
+                    img.src = e.target.result;
                     document.getElementById('cropModal').style.display = 'flex';
-                    if(cropper) cropper.destroy(); cropper = new Cropper(document.getElementById('cropTarget'), {viewMode: 1});
-                }; reader.readAsDataURL(input.files[0]);
+                    
+                    // Added setTimeout to fix cropper miscalculation when container switches from display none to flex
+                    setTimeout(() => {
+                        if(cropper) cropper.destroy(); 
+                        cropper = new Cropper(img, {viewMode: 1});
+                    }, 50);
+                }; 
+                reader.readAsDataURL(input.files[0]);
+                input.value = ""; // Reset the input allowing identical files to be selected again
             }
         }
         function closeCrop() { document.getElementById('cropModal').style.display = 'none'; }
         function saveCrop() {
-            const b64 = cropper.getCroppedCanvas().toDataURL('image/png');
-            document.getElementById(currType + '-img-val').value = b64;
-            document.getElementById('p-' + currType).classList.remove('hidden');
-            document.getElementById('p-' + currType).querySelector('img').src = b64;
+            if(cropper) {
+                const b64 = cropper.getCroppedCanvas().toDataURL('image/png');
+                document.getElementById(currType + '-img-val').value = b64;
+                document.getElementById('p-' + currType).classList.remove('hidden');
+                document.getElementById('p-' + currType).querySelector('img').src = b64;
+            }
             closeCrop();
         }
     </script>

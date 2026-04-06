@@ -79,8 +79,15 @@ foreach($all_quiz_questions as $q) {
             <?php foreach ($questions as $q): ?>
             <div class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 transition-all hover:border-indigo-200">
                 <div class="flex justify-between items-start mb-6">
-                    <p class="text-lg font-black text-gray-800"><?php echo htmlspecialchars($q['question_text']); ?></p>
-                    <span class="<?php echo $q['is_correct'] ? 'text-green-500' : 'text-red-500'; ?> text-3xl font-black">
+                    <div class="flex-1 pr-6">
+                        <p class="text-lg font-black text-gray-800"><?php echo htmlspecialchars($q['question_text']); ?></p>
+                        <?php if (!empty($q['question_image'])): ?>
+                            <div class="mt-4">
+                                <img src="uploads/<?php echo htmlspecialchars($q['question_image']); ?>" class="max-h-64 rounded-2xl shadow-sm border-2 border-gray-100 object-contain">
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    <span class="<?php echo $q['is_correct'] ? 'text-green-500' : 'text-red-500'; ?> text-3xl font-black shrink-0">
                         <?php echo $q['is_correct'] ? '✓' : '✗'; ?>
                     </span>
                 </div>
@@ -104,6 +111,11 @@ foreach($all_quiz_questions as $q) {
                 <div class="bg-indigo-50 p-6 rounded-2xl border border-indigo-100">
                     <p class="text-[10px] font-black text-indigo-400 uppercase mb-2 tracking-widest italic">Intelligence Solution</p>
                     <p class="text-sm font-bold text-gray-700 leading-relaxed"><?php echo nl2br(htmlspecialchars($q['solution_text'])); ?></p>
+                    <?php if (!empty($q['solution_image'])): ?>
+                        <div class="mt-4 pt-4 border-t border-indigo-100/50">
+                            <img src="uploads/<?php echo htmlspecialchars($q['solution_image']); ?>" class="max-h-64 rounded-2xl shadow-sm border border-indigo-200 object-contain">
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
             <?php endforeach; ?>
