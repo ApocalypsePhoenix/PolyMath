@@ -84,6 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare("DELETE FROM quizzes WHERE quiz_id = ?")->execute([$_POST['quiz_id']]);
             $message = "Quiz Deleted!";
         } elseif ($action === 'delete_question') {
+            $qid = $_POST['quiz_id'];
             $pdo->prepare("DELETE FROM questions WHERE question_id = ?")->execute([$_POST['question_id']]);
             $message = "Question Deleted!";
         }
@@ -226,70 +227,71 @@ $intel_json = json_encode($intelligence_data);
 <body class="pb-12">
 
     <div id="cropModal">
-        <div class="bg-white rounded-[2rem] p-8 w-full max-w-2xl flex flex-col max-h-[95vh]">
-            <h3 class="text-2xl font-black mb-4 text-[#46178f] shrink-0">Crop Asset</h3>
+        <div class="bg-white rounded-[2rem] p-4 sm:p-8 w-full max-w-2xl flex flex-col max-h-[95vh] mx-4 sm:mx-0">
+            <h3 class="text-xl sm:text-2xl font-black mb-4 text-[#46178f] shrink-0">Crop Asset</h3>
             <div class="w-full h-[50vh] mb-6 bg-gray-100 rounded-2xl overflow-hidden relative">
                 <img id="cropTarget" src="" class="block max-w-full max-h-full mx-auto">
             </div>
-            <div class="flex justify-end gap-4 shrink-0"><button onclick="closeCrop()" class="px-8 py-3 rounded-2xl bg-gray-200 font-bold">Cancel</button><button onclick="saveCrop()" class="px-8 py-3 rounded-2xl kahoot-purple text-white font-bold">Apply</button></div>
+            <div class="flex flex-col sm:flex-row justify-end gap-3 sm:gap-4 shrink-0"><button onclick="closeCrop()" class="w-full sm:w-auto px-8 py-3 rounded-2xl bg-gray-200 font-bold">Cancel</button><button onclick="saveCrop()" class="w-full sm:w-auto px-8 py-3 rounded-2xl kahoot-purple text-white font-bold">Apply</button></div>
         </div>
     </div>
 
-    <nav class="kahoot-purple text-white shadow-xl p-5 sticky top-0 z-40">
-        <div class="max-w-7xl mx-auto flex justify-between items-center"><h1 class="text-2xl font-black italic tracking-tighter uppercase">PolyMath <span class="font-light text-fuchsia-300">Command</span></h1><a href="logout.php" class="bg-red-500 hover:bg-red-600 px-6 py-2.5 rounded-xl text-sm font-black transition-all">LOGOUT</a></div>
+    <nav class="kahoot-purple text-white shadow-xl p-4 sm:p-5 sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto flex justify-between items-center"><h1 class="text-xl sm:text-2xl font-black italic tracking-tighter uppercase">PolyMath <span class="font-light text-fuchsia-300">Command</span></h1><a href="logout.php" class="bg-red-500 hover:bg-red-600 px-4 py-2 sm:px-6 sm:py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all">LOGOUT</a></div>
     </nav>
 
-    <main class="max-w-7xl mx-auto p-6 md:p-10">
+    <main class="max-w-7xl mx-auto p-4 sm:p-6 md:p-10">
         <?php if ($message): ?>
             <div id="toast" class="mb-8 p-5 rounded-[1.5rem] text-sm font-bold <?php echo $messageType === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'; ?> border-2 shadow-sm transition-opacity duration-500"><?php echo $message; ?></div>
             <script>setTimeout(() => { const el = document.getElementById('toast'); if(el) { el.classList.add('fade-out'); setTimeout(() => el.remove(), 500); } }, 20000);</script>
         <?php endif; ?>
 
-        <div class="flex bg-gray-200 p-2 rounded-2xl mb-10 w-fit mx-auto gap-2">
-            <button onclick="showTab('quizzes')" class="tab-btn px-8 py-3 rounded-xl font-black text-sm active" id="tab-quizzes">QUIZZES</button>
-            <button onclick="showTab('classes')" class="tab-btn px-8 py-3 rounded-xl font-black text-sm" id="tab-classes">CLASSES</button>
-            <button onclick="showTab('analytics')" class="tab-btn px-8 py-3 rounded-xl font-black text-sm" id="tab-analytics">INTELLIGENCE REPORT</button>
+        <div class="flex flex-wrap sm:flex-nowrap justify-center bg-gray-200 p-2 rounded-2xl mb-8 md:mb-10 w-full sm:w-fit mx-auto gap-2">
+            <button onclick="showTab('quizzes')" class="tab-btn w-full sm:w-auto px-6 md:px-8 py-3 rounded-xl font-black text-xs md:text-sm active" id="tab-quizzes">QUIZZES</button>
+            <button onclick="showTab('classes')" class="tab-btn w-full sm:w-auto px-6 md:px-8 py-3 rounded-xl font-black text-xs md:text-sm" id="tab-classes">CLASSES</button>
+            <button onclick="showTab('analytics')" class="tab-btn w-full sm:w-auto px-6 md:px-8 py-3 rounded-xl font-black text-xs md:text-sm" id="tab-analytics">INTELLIGENCE REPORT</button>
         </div>
 
         <!-- Intelligence Section -->
         <section id="sect-analytics" class="tab-content hidden space-y-12">
-            <div class="bg-white rounded-[3rem] p-12 shadow-2xl border-4 border-indigo-50" id="intel-container">
+            <div class="bg-white rounded-[2rem] sm:rounded-[3rem] p-6 sm:p-8 md:p-12 shadow-2xl border-4 border-indigo-50" id="intel-container">
                 <!-- JS will inject drill-down views here -->
             </div>
         </section>
 
         <!-- Quizzes Section -->
-        <section id="sect-quizzes" class="tab-content space-y-12">
-            <div id="list-view" class="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                <div class="bg-white rounded-[2rem] p-8 shadow-xl border-b-8 border-indigo-600 h-fit">
-                    <h2 class="text-2xl font-black mb-6 text-indigo-700" id="quiz-form-title">Quiz Settings</h2>
-                    <form action="admin_dashboard.php" method="POST" class="space-y-5">
+        <section id="sect-quizzes" class="tab-content space-y-8 md:space-y-12">
+            <div id="list-view" class="grid grid-cols-1 lg:grid-cols-3 gap-8 md:gap-10">
+                <div class="bg-white rounded-[2rem] p-6 sm:p-8 shadow-xl border-b-8 border-indigo-600 h-fit">
+                    <h2 class="text-xl sm:text-2xl font-black mb-6 text-indigo-700" id="quiz-form-title">Quiz Settings</h2>
+                    <form action="admin_dashboard.php" method="POST" class="space-y-4 sm:space-y-5">
                         <input type="hidden" name="action" value="create_quiz" id="quiz-action">
                         <input type="hidden" name="quiz_id" id="quiz-id">
-                        <input type="text" name="quiz_name" id="quiz-name" required placeholder="Quiz Name" class="w-full px-5 py-3 rounded-2xl border-2 font-bold outline-none focus:border-indigo-500">
-                        <select name="level_id" id="quiz-level" class="w-full px-5 py-3 rounded-2xl border-2 font-bold">
+                        <input type="text" name="quiz_name" id="quiz-name" required placeholder="Quiz Name" class="w-full px-4 sm:px-5 py-3 rounded-2xl border-2 font-bold outline-none focus:border-indigo-500">
+                        <select name="level_id" id="quiz-level" class="w-full px-4 sm:px-5 py-3 rounded-2xl border-2 font-bold bg-white">
                             <?php foreach($levels as $l): ?><option value="<?php echo $l['level_id']; ?>"><?php echo $l['level_name']; ?></option><?php endforeach; ?>
                         </select>
                         <div class="p-4 bg-indigo-50 rounded-2xl border-2">
                             <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" name="is_timed" id="quiz-timed" class="w-5 h-5 accent-indigo-600" onchange="document.getElementById('limit-box').classList.toggle('hidden', !this.checked)"><span class="text-sm font-black">Timed</span></label>
                             <div id="limit-box" class="hidden mt-4"><input type="number" name="time_limit" id="quiz-limit" value="300" class="w-full px-4 py-2 rounded-xl border-2 font-bold"></div>
                         </div>
-                        <button type="submit" class="w-full kahoot-blue text-white py-4 rounded-2xl font-black shadow-lg">SAVE QUIZ</button>
+                        <button type="submit" class="w-full kahoot-blue text-white py-3 sm:py-4 rounded-2xl font-black shadow-lg">SAVE QUIZ</button>
                     </form>
                 </div>
 
-                <div class="lg:col-span-2 bg-white rounded-[2rem] shadow-xl border-b-8 border-purple-700 overflow-hidden">
-                    <table class="w-full text-left">
-                        <thead><tr class="bg-gray-50 text-[10px] font-black uppercase text-gray-400"><th class="px-8 py-5">Quiz</th><th class="px-8 py-5 text-center">Qs</th><th class="px-8 py-5">Status</th><th class="px-8 py-5 text-right">Actions</th></tr></thead>
+                <div class="lg:col-span-2 bg-white rounded-[2rem] shadow-xl border-b-8 border-purple-700 overflow-x-auto">
+                    <table class="w-full text-left min-w-[700px]">
+                        <thead><tr class="bg-gray-50 text-[10px] font-black uppercase text-gray-400"><th class="px-6 sm:px-8 py-5">Quiz</th><th class="px-6 sm:px-8 py-5 text-center">Qs</th><th class="px-6 sm:px-8 py-5">Status</th><th class="px-6 sm:px-8 py-5 text-center">Time Limit</th><th class="px-6 sm:px-8 py-5 text-right">Actions</th></tr></thead>
                         <tbody class="divide-y">
                             <?php foreach($quizzes as $q): ?>
                             <tr class="hover:bg-gray-50 transition-all">
-                                <td class="px-8 py-6 font-black text-gray-800"><?php echo htmlspecialchars($q['quiz_name']); ?></td>
-                                <td class="px-8 py-6 text-center font-bold text-gray-400"><?php echo $q['q_count']; ?>/10</td>
-                                <td class="px-8 py-6"><?php echo ($q['is_published']) ? '<span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter">LIVE 🚀</span>' : '<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter">DRAFT</span>'; ?></td>
-                                <td class="px-8 py-6 text-right space-x-3">
+                                <td class="px-6 sm:px-8 py-4 sm:py-6 font-black text-gray-800"><?php echo htmlspecialchars($q['quiz_name']); ?></td>
+                                <td class="px-6 sm:px-8 py-4 sm:py-6 text-center font-bold text-gray-400"><?php echo $q['q_count']; ?>/10</td>
+                                <td class="px-6 sm:px-8 py-4 sm:py-6"><?php echo ($q['is_published']) ? '<span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter">LIVE 🚀</span>' : '<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter">DRAFT</span>'; ?></td>
+                                <td class="px-6 sm:px-8 py-4 sm:py-6 text-center font-black text-gray-500 text-sm"><?php echo $q['is_timed'] ? $q['time_limit'] . 's' : '<span class="opacity-30">Off</span>'; ?></td>
+                                <td class="px-6 sm:px-8 py-4 sm:py-6 text-right space-x-2 sm:space-x-3 whitespace-nowrap">
                                     <button onclick='editQuiz(<?php echo json_encode($q); ?>)' class="text-indigo-600 font-black text-xs uppercase">Edit</button>
-                                    <button onclick="manageQuestions(<?php echo $q['quiz_id']; ?>, '<?php echo addslashes($q['quiz_name']); ?>', <?php echo $q['q_count']; ?>, <?php echo $q['is_published']; ?>)" class="kahoot-purple text-white px-5 py-2.5 rounded-xl text-xs font-black shadow-md transition-all active:scale-95">BUILD</button>
+                                    <button onclick="manageQuestions(<?php echo $q['quiz_id']; ?>, '<?php echo addslashes($q['quiz_name']); ?>', <?php echo $q['q_count']; ?>, <?php echo $q['is_published']; ?>)" class="kahoot-purple text-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl text-xs font-black shadow-md transition-all active:scale-95">BUILD</button>
                                 </td>
                             </tr>
                             <?php endforeach; ?>
@@ -299,62 +301,62 @@ $intel_json = json_encode($intelligence_data);
             </div>
 
             <!-- Builder Hub -->
-            <div id="builder-hub" class="hidden bg-white rounded-[3rem] p-10 shadow-2xl border-4 border-[#46178f]">
-                <div class="flex justify-between items-center mb-10 pb-6 border-b-2">
-                    <h2 class="text-3xl font-black text-gray-800">Quiz Builder: <span id="managed-name" class="text-[#46178f]"></span></h2>
-                    <div class="flex gap-4">
-                        <form action="admin_dashboard.php" method="POST">
+            <div id="builder-hub" class="hidden bg-white rounded-[2rem] sm:rounded-[3rem] p-6 sm:p-10 shadow-2xl border-4 border-[#46178f]">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 sm:mb-10 pb-6 border-b-2">
+                    <h2 class="text-2xl sm:text-3xl font-black text-gray-800 break-all w-full">Quiz Builder: <span id="managed-name" class="text-[#46178f]"></span></h2>
+                    <div class="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full md:w-auto shrink-0">
+                        <form action="admin_dashboard.php" method="POST" class="w-full sm:w-auto">
                             <input type="hidden" name="action" value="toggle_publish"><input type="hidden" name="quiz_id" id="pub-id"><input type="hidden" name="publish_status" id="pub-status">
-                            <button type="submit" id="pub-btn" class="hidden px-8 py-4 rounded-2xl font-black text-white shadow-xl transition-all uppercase"></button>
+                            <button type="submit" id="pub-btn" class="hidden w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 rounded-2xl font-black text-white shadow-xl transition-all uppercase text-sm"></button>
                         </form>
-                        <button onclick="document.getElementById('builder-hub').classList.add('hidden')" class="kahoot-yellow text-white px-8 py-4 rounded-2xl font-black shadow-xl uppercase transition-all">SAVE AS DRAFT</button>
+                        <button type="button" onclick="closeBuilder()" class="kahoot-yellow text-white w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 rounded-2xl font-black shadow-xl uppercase transition-all text-sm">SAVE AS DRAFT</button>
                     </div>
                 </div>
                 
-                <div class="grid grid-cols-1 xl:grid-cols-3 gap-12">
-                    <form action="admin_dashboard.php" id="q-form" method="POST" class="space-y-6 bg-gray-50 p-8 rounded-[2rem] border-2">
+                <div class="grid grid-cols-1 xl:grid-cols-3 gap-8 sm:gap-12">
+                    <form action="admin_dashboard.php" id="q-form" method="POST" class="space-y-4 sm:space-y-6 bg-gray-50 p-5 sm:p-8 rounded-[2rem] border-2">
                         <input type="hidden" name="action" value="add_question" id="q-action"><input type="hidden" name="quiz_id" id="q-quiz-id"><input type="hidden" name="question_id" id="q-id">
                         <input type="hidden" name="cropped_question_image" id="q-img-val"><input type="hidden" name="cropped_solution_image" id="s-img-val">
-                        <textarea name="question_text" id="q-text" placeholder="Quiz question..." required class="w-full px-5 py-4 rounded-2xl border-2 font-bold h-32 focus:border-indigo-500 outline-none"></textarea>
-                        <div class="grid grid-cols-2 gap-3">
-                            <input type="text" name="option_a" id="q-a" placeholder="A" required class="px-5 py-3 rounded-xl border-2 font-bold text-red-600">
-                            <input type="text" name="option_b" id="q-b" placeholder="B" required class="px-5 py-3 rounded-xl border-2 font-bold text-blue-600">
-                            <input type="text" name="option_c" id="q-c" placeholder="C" required class="px-5 py-3 rounded-xl border-2 font-bold text-amber-500">
-                            <input type="text" name="option_d" id="q-d" placeholder="D" required class="px-5 py-3 rounded-xl border-2 font-bold text-green-600">
+                        <textarea name="question_text" id="q-text" placeholder="Quiz question..." required class="w-full px-4 sm:px-5 py-3 sm:py-4 rounded-2xl border-2 font-bold h-24 sm:h-32 focus:border-indigo-500 outline-none"></textarea>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <input type="text" name="option_a" id="q-a" placeholder="A" required class="px-4 sm:px-5 py-3 rounded-xl border-2 font-bold text-red-600">
+                            <input type="text" name="option_b" id="q-b" placeholder="B" required class="px-4 sm:px-5 py-3 rounded-xl border-2 font-bold text-blue-600">
+                            <input type="text" name="option_c" id="q-c" placeholder="C" required class="px-4 sm:px-5 py-3 rounded-xl border-2 font-bold text-amber-500">
+                            <input type="text" name="option_d" id="q-d" placeholder="D" required class="px-4 sm:px-5 py-3 rounded-xl border-2 font-bold text-green-600">
                         </div>
-                        <select name="correct_option" id="q-correct" class="w-full px-5 py-3 rounded-2xl border-2 font-black text-indigo-700 bg-white">
+                        <select name="correct_option" id="q-correct" class="w-full px-4 sm:px-5 py-3 rounded-2xl border-2 font-black text-indigo-700 bg-white">
                             <option value="A">Answer A</option><option value="B">Answer B</option><option value="C">Answer C</option><option value="D">Answer D</option>
                         </select>
                         <div class="grid grid-cols-2 gap-4">
-                            <button type="button" onclick="document.getElementById('f-q').click()" class="p-4 bg-white rounded-2xl border-2 border-dashed flex flex-col items-center"><span class="text-[9px] font-black opacity-30 uppercase">Q Image</span><input type="file" id="f-q" class="hidden" onchange="initCrop(this, 'q')"><div id="p-q" class="h-10 mt-2 hidden"><img src="" class="h-full"></div></button>
-                            <button type="button" onclick="document.getElementById('f-s').click()" class="p-4 bg-white rounded-2xl border-2 border-dashed flex flex-col items-center"><span class="text-[9px] font-black opacity-30 uppercase">S Image</span><input type="file" id="f-s" class="hidden" onchange="initCrop(this, 's')"><div id="p-s" class="h-10 mt-2 hidden"><img src="" class="h-full"></div></button>
+                            <button type="button" onclick="document.getElementById('f-q').click()" class="p-4 bg-white rounded-2xl border-2 border-dashed flex flex-col items-center justify-center"><span class="text-[9px] font-black opacity-30 uppercase text-center">Q Image</span><input type="file" id="f-q" class="hidden" onchange="initCrop(this, 'q')"><div id="p-q" class="h-10 mt-2 hidden"><img src="" class="h-full object-contain"></div></button>
+                            <button type="button" onclick="document.getElementById('f-s').click()" class="p-4 bg-white rounded-2xl border-2 border-dashed flex flex-col items-center justify-center"><span class="text-[9px] font-black opacity-30 uppercase text-center">S Image</span><input type="file" id="f-s" class="hidden" onchange="initCrop(this, 's')"><div id="p-s" class="h-10 mt-2 hidden"><img src="" class="h-full object-contain"></div></button>
                         </div>
-                        <textarea name="solution_text" id="q-sol" placeholder="Intelligence solution..." class="w-full px-5 py-4 rounded-2xl border-2 font-bold h-24"></textarea>
-                        <button type="submit" class="w-full kahoot-purple text-white py-4 rounded-2xl font-black shadow-xl">UPLOAD QUIZ DATA</button>
+                        <textarea name="solution_text" id="q-sol" placeholder="Intelligence solution..." class="w-full px-4 sm:px-5 py-3 sm:py-4 rounded-2xl border-2 font-bold h-20 sm:h-24"></textarea>
+                        <button type="submit" class="w-full kahoot-purple text-white py-3 sm:py-4 rounded-2xl font-black shadow-xl">UPLOAD QUIZ DATA</button>
                     </form>
-                    <div class="xl:col-span-2 space-y-4 overflow-y-auto max-h-[800px] pr-4" id="questions-list"></div>
+                    <div class="xl:col-span-2 space-y-4 overflow-y-auto max-h-[800px] pr-2 sm:pr-4" id="questions-list"></div>
                 </div>
             </div>
         </section>
 
         <!-- Classes Section -->
-        <section id="sect-classes" class="tab-content hidden space-y-10">
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                <div class="bg-white rounded-[2.5rem] p-8 shadow-xl border-b-8 border-green-600 h-fit">
-                    <h2 class="text-2xl font-black mb-6 text-green-700" id="cl-form-title">New Group</h2>
+        <section id="sect-classes" class="tab-content hidden space-y-8 sm:space-y-10">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 md:gap-10">
+                <div class="bg-white rounded-[2.5rem] p-6 sm:p-8 shadow-xl border-b-8 border-green-600 h-fit">
+                    <h2 class="text-xl sm:text-2xl font-black mb-6 text-green-700" id="cl-form-title">New Group</h2>
                     <form action="admin_dashboard.php" method="POST" class="space-y-4">
                         <input type="hidden" name="action" value="add_class" id="cl-action"><input type="hidden" name="class_id" id="cl-id">
-                        <input type="text" name="new_class_name" id="cl-name" required placeholder="Academic Group" class="w-full px-5 py-4 rounded-2xl border-2 font-bold outline-none focus:border-green-500">
-                        <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white py-4 rounded-2xl font-black transition-all active:scale-95 shadow-lg">CREATE GROUP</button>
+                        <input type="text" name="new_class_name" id="cl-name" required placeholder="Academic Group" class="w-full px-4 sm:px-5 py-3 sm:py-4 rounded-2xl border-2 font-bold outline-none focus:border-green-500">
+                        <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white py-3 sm:py-4 rounded-2xl font-black transition-all active:scale-95 shadow-lg">CREATE GROUP</button>
                     </form>
                 </div>
-                <div class="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                     <?php foreach($classes as $c): ?>
-                    <div class="bg-white rounded-[2rem] p-8 shadow-lg border flex items-center justify-between transition-all hover:border-indigo-200">
-                        <div><h3 class="text-2xl font-black text-gray-800"><?php echo htmlspecialchars($c['class_name']); ?></h3><p class="text-xs font-black text-indigo-500 uppercase tracking-widest"><?php echo $c['student_count']; ?> Students</p></div>
-                        <div class="flex gap-2">
-                            <button onclick='editCl(<?php echo json_encode($c); ?>)' class="text-indigo-600 font-bold text-xs uppercase">Edit</button>
-                            <form action="admin_dashboard.php" method="POST" onsubmit="return confirm('Delete?')"><input type="hidden" name="action" value="delete_class"><input type="hidden" name="class_id" value="<?php echo $c['class_id']; ?>"><button type="submit" class="w-10 h-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center transition-all hover:bg-red-500 hover:text-white">🗑️</button></form>
+                    <div class="bg-white rounded-[2rem] p-6 sm:p-8 shadow-lg border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all hover:border-indigo-200">
+                        <div class="w-full truncate"><h3 class="text-xl sm:text-2xl font-black text-gray-800 truncate"><?php echo htmlspecialchars($c['class_name']); ?></h3><p class="text-xs font-black text-indigo-500 uppercase tracking-widest mt-1"><?php echo $c['student_count']; ?> Students</p></div>
+                        <div class="flex gap-2 w-full sm:w-auto justify-end">
+                            <button onclick='editCl(<?php echo json_encode($c); ?>)' class="text-indigo-600 font-bold text-xs uppercase px-2">Edit</button>
+                            <form action="admin_dashboard.php" method="POST" class="m-0" onsubmit="return confirm('Delete?')"><input type="hidden" name="action" value="delete_class"><input type="hidden" name="class_id" value="<?php echo $c['class_id']; ?>"><button type="submit" class="w-10 h-10 bg-red-50 text-red-500 rounded-xl flex items-center justify-center transition-all hover:bg-red-500 hover:text-white">🗑️</button></form>
                         </div>
                     </div>
                     <?php endforeach; ?>
@@ -371,18 +373,28 @@ $intel_json = json_encode($intelligence_data);
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.getElementById('sect-' + t).classList.remove('hidden');
             document.getElementById('tab-' + t).classList.add('active');
+            
+            if (t === 'quizzes') {
+                closeBuilder(); // Ensure builder is closed if they navigate away and back
+            }
+        }
+        
+        function closeBuilder() {
+            document.getElementById('builder-hub').classList.add('hidden');
+            document.getElementById('list-view').classList.remove('hidden');
+            window.history.pushState({}, document.title, window.location.pathname);
         }
 
         // --- INTELLIGENCE HUB (DRILL-DOWN LOGIC) ---
         const intelData = <?php echo $intel_json; ?>;
 
         function renderIntelClasses() {
-            let html = `<h2 class="text-3xl font-black text-gray-800 italic uppercase mb-12">Intelligence Hub: Select a Group</h2><div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">`;
+            let html = `<h2 class="text-2xl sm:text-3xl font-black text-gray-800 italic uppercase mb-8 sm:mb-12">Intelligence Hub: Select a Group</h2><div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mb-8 sm:mb-12">`;
             intelData.forEach((cls, idx) => {
                 html += `
                 <div onclick="renderIntelQuizzes(${idx})" class="bg-indigo-50 hover:bg-indigo-100 cursor-pointer p-6 rounded-3xl border-2 border-white shadow-sm text-center transition-all transform hover:-translate-y-1">
-                    <p class="text-xs font-black text-gray-500 uppercase mb-2">${cls.class_name}</p>
-                    <p class="text-4xl font-black text-indigo-700">${cls.student_count}</p>
+                    <p class="text-xs font-black text-gray-500 uppercase mb-2 truncate">${cls.class_name}</p>
+                    <p class="text-3xl sm:text-4xl font-black text-indigo-700">${cls.student_count}</p>
                     <p class="text-[10px] font-bold text-indigo-400 mt-1 uppercase">Students Enrolled</p>
                 </div>`;
             });
@@ -393,21 +405,21 @@ $intel_json = json_encode($intelligence_data);
         function renderIntelQuizzes(classIdx) {
             const cls = intelData[classIdx];
             let html = `
-            <div class="flex items-center gap-4 mb-10">
-                <button onclick="renderIntelClasses()" class="px-5 py-2 bg-gray-200 hover:bg-gray-300 rounded-xl font-black text-xs uppercase transition-all">← Back</button>
-                <h2 class="text-3xl font-black text-gray-800 italic uppercase">${cls.class_name} Quizzes</h2>
+            <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-8 sm:mb-10">
+                <button onclick="renderIntelClasses()" class="px-5 py-2 bg-gray-200 hover:bg-gray-300 rounded-xl font-black text-xs uppercase transition-all shrink-0">← Back</button>
+                <h2 class="text-2xl sm:text-3xl font-black text-gray-800 italic uppercase truncate w-full">${cls.class_name} Quizzes</h2>
             </div>`;
             
             if(!cls.quizzes || cls.quizzes.length === 0) {
-                html += `<div class="p-10 text-center border-4 border-dashed rounded-3xl opacity-50"><p class="font-black text-xl uppercase">No quiz data yet.</p></div>`;
+                html += `<div class="p-8 sm:p-10 text-center border-4 border-dashed rounded-3xl opacity-50"><p class="font-black text-lg sm:text-xl uppercase">No quiz data yet.</p></div>`;
             } else {
-                html += `<div class="grid grid-cols-1 md:grid-cols-3 gap-6">`;
+                html += `<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">`;
                 cls.quizzes.forEach((quiz, qIdx) => {
                     const col = quiz.level_name === 'Easy' ? 'border-green-500' : (quiz.level_name === 'Intermediate' ? 'border-amber-500' : 'border-red-500');
                     html += `
                     <div onclick="renderIntelStats(${classIdx}, ${qIdx})" class="bg-white hover:bg-gray-50 cursor-pointer p-6 rounded-[2rem] border border-b-8 shadow-sm transition-all transform hover:-translate-y-1 ${col}">
                         <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-gray-100 text-gray-500">${quiz.level_name}</span>
-                        <h4 class="text-2xl font-black text-gray-800 mt-4">${quiz.quiz_name}</h4>
+                        <h4 class="text-xl sm:text-2xl font-black text-gray-800 mt-4 truncate">${quiz.quiz_name}</h4>
                         <p class="text-[10px] font-bold text-gray-400 uppercase mt-2 tracking-tighter">${quiz.participation} Students Attempted</p>
                     </div>`;
                 });
@@ -421,9 +433,9 @@ $intel_json = json_encode($intelligence_data);
             const quiz = cls.quizzes[quizIdx];
             
             let html = `
-            <div class="flex items-center gap-4 mb-10">
-                <button onclick="renderIntelQuizzes(${classIdx})" class="px-5 py-2 bg-gray-200 hover:bg-gray-300 rounded-xl font-black text-xs uppercase transition-all">← Back</button>
-                <h2 class="text-3xl font-black text-gray-800 italic uppercase">${cls.class_name} - ${quiz.quiz_name} Analytics</h2>
+            <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-8 sm:mb-10">
+                <button onclick="renderIntelQuizzes(${classIdx})" class="px-5 py-2 bg-gray-200 hover:bg-gray-300 rounded-xl font-black text-xs uppercase transition-all shrink-0">← Back</button>
+                <h2 class="text-xl sm:text-3xl font-black text-gray-800 italic uppercase break-words w-full">${cls.class_name} - ${quiz.quiz_name}</h2>
             </div>
             <div class="space-y-6">`;
 
@@ -453,7 +465,7 @@ $intel_json = json_encode($intelligence_data);
                      // Enhanced Image Display Layout
                      let imgHtml = '';
                      if (q.question_image || q.solution_image) {
-                         imgHtml += `<div class="flex flex-col md:flex-row gap-4 mb-6">`;
+                         imgHtml += `<div class="flex flex-col sm:flex-row gap-4 mb-6">`;
                          if (q.question_image) {
                              imgHtml += `<div class="flex-1 bg-gray-50 rounded-[1.5rem] p-4 border border-gray-200 flex flex-col justify-center"><p class="text-[10px] font-black text-gray-400 uppercase mb-3 text-center tracking-widest">Question Asset</p><img src="uploads/${q.question_image}" class="max-h-32 mx-auto rounded-xl shadow-sm object-contain bg-white"></div>`;
                          }
@@ -464,14 +476,14 @@ $intel_json = json_encode($intelligence_data);
                      }
 
                      html += `
-                     <div class="bg-white p-8 rounded-[2.5rem] border border-gray-200 shadow-sm relative overflow-hidden transition-all hover:shadow-xl hover:-translate-y-1 hover:border-indigo-200 group">
+                     <div class="bg-white p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] border border-gray-200 shadow-sm relative overflow-hidden transition-all hover:shadow-xl hover:-translate-y-1 hover:border-indigo-200 group">
                         <!-- Decorative left color band -->
-                        <div class="absolute left-0 top-0 bottom-0 w-2 ${barCol} opacity-80 group-hover:opacity-100 transition-opacity"></div>
+                        <div class="absolute left-0 top-0 bottom-0 w-1.5 sm:w-2 ${barCol} opacity-80 group-hover:opacity-100 transition-opacity"></div>
                         
-                        <div class="pl-4 flex flex-col h-full">
+                        <div class="pl-3 sm:pl-4 flex flex-col h-full">
                             <!-- Top Section: Text & Badge -->
-                            <div class="flex flex-col md:flex-row justify-between items-start gap-6 mb-6">
-                                <h4 class="text-xl font-black text-gray-800 leading-snug">"${q.question_text}"</h4>
+                            <div class="flex flex-col sm:flex-row justify-between items-start gap-4 sm:gap-6 mb-6">
+                                <h4 class="text-lg sm:text-xl font-black text-gray-800 leading-snug w-full">"${q.question_text}"</h4>
                                 <span class="px-4 py-2 rounded-full border text-[10px] font-black uppercase tracking-widest whitespace-nowrap shrink-0 ${badgeStyle}">
                                     ${badgeText} &bull; ${pct}%
                                 </span>
@@ -481,19 +493,19 @@ $intel_json = json_encode($intelligence_data);
                             ${imgHtml}
 
                             <!-- Stats Grid -->
-                            <div class="bg-gray-50 rounded-[2rem] p-6 border border-gray-100 mt-auto">
-                                <div class="grid grid-cols-3 gap-4 mb-5 text-center divide-x divide-gray-200">
+                            <div class="bg-gray-50 rounded-[1.5rem] sm:rounded-[2rem] p-5 sm:p-6 border border-gray-100 mt-auto">
+                                <div class="grid grid-cols-3 gap-2 sm:gap-4 mb-5 text-center divide-x divide-gray-200">
                                     <div>
-                                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Correct</p>
-                                        <p class="text-3xl font-black text-green-500">${q.correct}</p>
+                                        <p class="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Correct</p>
+                                        <p class="text-2xl sm:text-3xl font-black text-green-500">${q.correct}</p>
                                     </div>
                                     <div>
-                                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Incorrect</p>
-                                        <p class="text-3xl font-black text-red-500">${wrong}</p>
+                                        <p class="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Incorrect</p>
+                                        <p class="text-2xl sm:text-3xl font-black text-red-500">${wrong}</p>
                                     </div>
                                     <div>
-                                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total</p>
-                                        <p class="text-3xl font-black text-gray-700">${q.attempts}</p>
+                                        <p class="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total</p>
+                                        <p class="text-2xl sm:text-3xl font-black text-gray-700">${q.attempts}</p>
                                     </div>
                                 </div>
                                 
@@ -510,9 +522,20 @@ $intel_json = json_encode($intelligence_data);
             document.getElementById('intel-container').innerHTML = html;
         }
 
-        // Initialize Intelligence Hub
+        // Initialize Intelligence Hub and Builder Restores
         document.addEventListener('DOMContentLoaded', () => {
             if(document.getElementById('intel-container')) renderIntelClasses();
+            
+            <?php
+            $managed_quiz_id = $_GET['managed_quiz'] ?? null;
+            if ($managed_quiz_id) {
+                $mq = array_filter($quizzes, fn($q) => $q['quiz_id'] == $managed_quiz_id);
+                if (!empty($mq)) {
+                    $mq = current($mq);
+                    echo "manageQuestions({$mq['quiz_id']}, '" . addslashes($mq['quiz_name']) . "', {$mq['q_count']}, {$mq['is_published']});";
+                }
+            }
+            ?>
         });
 
 
@@ -524,6 +547,7 @@ $intel_json = json_encode($intelligence_data);
             document.getElementById('quiz-name').value = q.quiz_name;
             document.getElementById('quiz-level').value = q.level_id;
             document.getElementById('quiz-timed').checked = q.is_timed == 1;
+            document.getElementById('limit-box').classList.toggle('hidden', q.is_timed != 1);
             document.getElementById('quiz-limit').value = q.time_limit;
             window.scrollTo({top:0, behavior:'smooth'});
         }
@@ -539,8 +563,11 @@ $intel_json = json_encode($intelligence_data);
             document.getElementById('managed-name').innerText = quizName;
             document.getElementById('q-quiz-id').value = quizId;
             document.getElementById('pub-id').value = quizId;
+            
+            // Hides the primary list, showing ONLY the builder to maintain focus
+            document.getElementById('list-view').classList.add('hidden');
             document.getElementById('builder-hub').classList.remove('hidden');
-            document.getElementById('builder-hub').scrollIntoView({behavior:'smooth'});
+            window.scrollTo({top:0, behavior:'instant'});
             
             // Reset the form just in case a user was previously editing a question
             document.getElementById('q-form').reset();
@@ -554,8 +581,8 @@ $intel_json = json_encode($intelligence_data);
             const btn = document.getElementById('pub-btn'); const val = document.getElementById('pub-status');
             if(qCount >= 10) {
                 btn.classList.remove('hidden');
-                if(isPub) { btn.innerText = "UNPUBLISH"; btn.className = "bg-red-500 px-8 py-4 rounded-2xl font-black text-white shadow-xl"; val.value = 0; }
-                else { btn.innerText = "PUBLISH LIVE"; btn.className = "bg-green-500 px-8 py-4 rounded-2xl font-black text-white shadow-xl"; val.value = 1; }
+                if(isPub) { btn.innerText = "UNPUBLISH"; btn.className = "w-full sm:w-auto bg-red-500 px-6 sm:px-8 py-3 sm:py-4 rounded-2xl font-black text-white shadow-xl text-sm"; val.value = 0; }
+                else { btn.innerText = "PUBLISH LIVE"; btn.className = "w-full sm:w-auto bg-green-500 px-6 sm:px-8 py-3 sm:py-4 rounded-2xl font-black text-white shadow-xl text-sm"; val.value = 1; }
             } else { btn.classList.add('hidden'); }
 
             const list = document.getElementById('questions-list');
@@ -565,7 +592,7 @@ $intel_json = json_encode($intelligence_data);
                 const data = await res.json();
                 list.innerHTML = data.length ? "" : "<p class='p-10 text-center opacity-20 font-black'>No intelligence data</p>";
                 data.forEach((q, i) => {
-                    list.innerHTML += `<div class="bg-white p-6 rounded-2xl border-2 flex items-center gap-6 shadow-sm"><div class="w-10 h-10 bg-indigo-50 text-indigo-700 flex items-center justify-center font-black rounded-lg">${i+1}</div><div class="flex-grow font-bold text-gray-700 truncate">${q.question_text}</div><div class="flex gap-3"><button onclick='loadQ(${JSON.stringify(q).replace(/'/g, "&apos;")})' class="text-indigo-600 font-bold text-xs uppercase">Edit</button><form action="admin_dashboard.php" method="POST" class="inline"><input type="hidden" name="action" value="delete_question"><input type="hidden" name="question_id" value="${q.question_id}"><button type="submit" class="text-red-500 font-black text-xs uppercase" onclick="return confirm('Del?')">Del</button></form></div></div>`;
+                    list.innerHTML += `<div class="bg-white p-4 sm:p-6 rounded-2xl border-2 flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 shadow-sm"><div class="flex items-center gap-4 w-full sm:flex-grow overflow-hidden"><div class="w-10 h-10 bg-indigo-50 text-indigo-700 flex items-center justify-center font-black rounded-lg shrink-0">${i+1}</div><div class="font-bold text-gray-700 truncate w-full">${q.question_text}</div></div><div class="flex gap-4 w-full sm:w-auto justify-end mt-2 sm:mt-0"><button onclick='loadQ(${JSON.stringify(q).replace(/'/g, "&apos;")})' class="text-indigo-600 font-bold text-xs uppercase">Edit</button><form action="admin_dashboard.php" method="POST" class="inline m-0"><input type="hidden" name="action" value="delete_question"><input type="hidden" name="question_id" value="${q.question_id}"><input type="hidden" name="quiz_id" value="${quizId}"><button type="submit" class="text-red-500 font-black text-xs uppercase" onclick="return confirm('Del?')">Del</button></form></div></div>`;
                 });
             } catch (e) { list.innerHTML = "Sync Error."; }
         }

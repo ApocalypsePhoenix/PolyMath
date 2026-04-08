@@ -31,14 +31,19 @@ $questions_json = json_encode($questions);
 <body class="min-h-screen">
     <div class="fixed top-0 w-full z-50 bg-black/20 backdrop-blur-lg px-8 py-4 flex justify-between items-center border-b border-white/10">
         <span class="text-xl font-black italic tracking-tighter uppercase">PolyMath</span>
-        <div id="q-counter" class="bg-white/20 px-4 py-1 rounded-full font-bold text-sm">Challenge 1/10</div>
+        <div class="flex items-center gap-4">
+            <div id="timer-display" class="hidden bg-black/30 border border-white/20 px-4 py-1.5 rounded-full font-bold text-sm tracking-widest flex items-center gap-2 transition-colors duration-500">
+                ⏱️ <span id="time-left"></span>
+            </div>
+            <div id="q-counter" class="bg-white/20 px-4 py-1.5 rounded-full font-bold text-sm">Challenge 1/10</div>
+        </div>
     </div>
 
     <main class="pt-32 pb-12 px-6 max-w-4xl mx-auto flex flex-col items-center">
-        <div id="quiz-ui" class="w-full">
+        <div id="quiz-ui" class="w-full transition-opacity duration-500">
             <div class="text-center mb-12">
                 <div id="q-img-container" class="hidden mb-8">
-                    <img id="q-img" src="" class="max-h-64 mx-auto rounded-3xl shadow-2xl border-4 border-white/20">
+                    <img id="q-img" src="" class="max-h-64 mx-auto rounded-3xl shadow-2xl border-4 border-white/20 bg-white object-contain">
                 </div>
                 <h2 id="q-text" class="text-4xl font-extrabold leading-tight"></h2>
             </div>
@@ -70,8 +75,15 @@ $questions_json = json_encode($questions);
     <script>
         const questions = <?php echo $questions_json; ?>;
         const qid = <?php echo $quiz_id; ?>;
+        
+        // Timer Configurations extracted from DB
+        const quizConfig = <?php echo json_encode(['is_timed' => $quiz['is_timed'] ? true : false, 'time_limit' => (int)$quiz['time_limit']]); ?>;
+        
         let idx = 0, score = 0, startTime = Date.now();
         let userChoices = [];
+        let timerInterval = null;
+        let timeLeft = quizConfig.time_limit;
+        let isFinishing = false; // Prevent double submission
 
         function loadQ() {
             if (idx >= questions.length) { finish(); return; }
@@ -107,7 +119,18 @@ $questions_json = json_encode($questions);
         function nextStep() { idx++; loadQ(); }
 
         async function finish() {
+            if (isFinishing) return;
+            isFinishing = true;
+            
+            if (timerInterval) clearInterval(timerInterval);
+            
+            // Lock UI
+            document.getElementById('quiz-ui').classList.add('opacity-50', 'pointer-events-none');
+            document.getElementById('res-overlay').classList.add('hidden');
+
             const time = Math.floor((Date.now() - startTime) / 1000);
+            const finalTime = (quizConfig.is_timed && time > quizConfig.time_limit) ? quizConfig.time_limit : time;
+
             try {
                 const r = await fetch('submit_quiz.php', {
                     method: 'POST',
@@ -116,7 +139,7 @@ $questions_json = json_encode($questions);
                         quiz_id: qid, 
                         score: score, 
                         total_questions: questions.length, 
-                        time_taken: time,
+                        time_taken: finalTime,
                         answers: userChoices 
                     })
                 });
@@ -125,7 +148,37 @@ $questions_json = json_encode($questions);
             } catch (e) { window.location.href = 'student_dashboard.php'; }
         }
 
+        function updateTimerDisplay() {
+            let m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
+            let s = (timeLeft % 60).toString().padStart(2, '0');
+            document.getElementById('time-left').innerText = `${m}:${s}`;
+            
+            // Pulse Red when time is critically low (30 seconds or less)
+            if (timeLeft <= 30) {
+                const tDisp = document.getElementById('timer-display');
+                tDisp.classList.remove('bg-black/30', 'border-white/20');
+                tDisp.classList.add('bg-red-600', 'border-red-500', 'animate-pulse');
+            }
+        }
+
+        // Initialize Quiz
         loadQ();
+
+        // Initialize Timer
+        if (quizConfig.is_timed && quizConfig.time_limit > 0) {
+            document.getElementById('timer-display').classList.remove('hidden');
+            updateTimerDisplay();
+            
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                updateTimerDisplay();
+                
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    finish(); // Auto-submit when time is up
+                }
+            }, 1000);
+        }
     </script>
 </body>
 </html>

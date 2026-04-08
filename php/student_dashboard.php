@@ -45,6 +45,19 @@ try {
     $stmt->execute([$user_id]);
     $stats = $stmt->fetch();
 
+    // Leaderboard Logic
+    $stmt = $pdo->prepare("
+        SELECT u.user_id, u.username, IFNULL(SUM(qa.score), 0) as total_score
+        FROM users u
+        LEFT JOIN quiz_attempts qa ON u.user_id = qa.user_id
+        WHERE u.class_id = ? AND u.role = 'student'
+        GROUP BY u.user_id, u.username
+        ORDER BY total_score DESC, u.username ASC
+        LIMIT 5
+    ");
+    $stmt->execute([$user_data['class_id']]);
+    $leaderboard = $stmt->fetchAll();
+
 } catch (PDOException $e) { die("System Error: " . $e->getMessage()); }
 ?>
 <!DOCTYPE html>
@@ -139,9 +152,33 @@ try {
 
                 <div class="bg-white rounded-[3rem] p-10 shadow-xl border-4 border-indigo-50 card-hover transition-all">
                     <h3 class="text-2xl font-black text-gray-800 uppercase italic tracking-tighter mb-8">Class Standing</h3>
-                    <div class="flex items-center justify-between p-5 kahoot-blue rounded-[1.5rem] shadow-xl text-white">
-                        <div class="flex items-center gap-4"><span class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center font-black">1</span><span class="text-lg font-black tracking-tight"><?php echo htmlspecialchars($user_data['username']); ?></span></div>
-                        <span class="text-xl">🔥</span>
+                    <div class="space-y-4">
+                        <?php foreach ($leaderboard as $index => $leader): 
+                            $rank = $index + 1;
+                            $is_me = ($leader['user_id'] === $user_id);
+                            $bg_class = $is_me ? "kahoot-blue text-white shadow-xl transform scale-105" : "bg-gray-50 text-gray-700 border-2 border-transparent hover:border-indigo-100";
+                            $num_bg = $is_me ? "bg-white/20" : "bg-gray-200 text-gray-500 font-bold";
+                            $icon = "";
+                            if ($rank == 1) $icon = "👑";
+                            else if ($rank == 2) $icon = "🥈";
+                            else if ($rank == 3) $icon = "🥉";
+                            else if ($is_me) $icon = "🔥";
+                        ?>
+                        <div class="flex items-center justify-between p-5 rounded-[1.5rem] transition-all <?php echo $bg_class; ?>">
+                            <div class="flex items-center gap-4">
+                                <span class="w-10 h-10 rounded-xl flex items-center justify-center font-black <?php echo $num_bg; ?>"><?php echo $rank; ?></span>
+                                <span class="text-lg font-black tracking-tight truncate max-w-[120px]"><?php echo htmlspecialchars($leader['username']); ?></span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <span class="font-black text-sm <?php echo $is_me ? 'text-indigo-200' : 'text-gray-400'; ?>"><?php echo $leader['total_score']; ?> PTS</span>
+                                <?php if($icon): ?><span class="text-xl"><?php echo $icon; ?></span><?php endif; ?>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+
+                        <?php if(empty($leaderboard)): ?>
+                            <div class="p-5 text-center text-gray-400 font-bold italic">No ranked students yet.</div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
