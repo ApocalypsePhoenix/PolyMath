@@ -7,6 +7,11 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     exit();
 }
 
+// --- DATABASE AUTO-PATCH ---
+// Automatically adds the quiz_password column if it doesn't exist
+try { $pdo->query("SELECT quiz_password FROM quizzes LIMIT 1"); } 
+catch (PDOException $e) { $pdo->exec("ALTER TABLE quizzes ADD COLUMN quiz_password VARCHAR(255) NULL"); }
+
 $message = ""; $messageType = "";
 
 /**
@@ -38,12 +43,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = "Group deleted!";
         } elseif ($action === 'create_quiz' || $action === 'edit_quiz') {
             if ($action === 'create_quiz') {
-                $pdo->prepare("INSERT INTO quizzes (quiz_name, level_id, is_timed, time_limit, is_published) VALUES (?, ?, ?, ?, 0)")
-                    ->execute([trim($_POST['quiz_name']), $_POST['level_id'], isset($_POST['is_timed'])?1:0, (int)$_POST['time_limit']]);
+                $pdo->prepare("INSERT INTO quizzes (quiz_name, level_id, is_timed, time_limit, quiz_password, is_published) VALUES (?, ?, ?, ?, ?, 0)")
+                    ->execute([trim($_POST['quiz_name']), $_POST['level_id'], isset($_POST['is_timed'])?1:0, (int)$_POST['time_limit'] * 60, $_POST['quiz_password']]);
                 $message = "Quiz Created!";
             } else {
-                $pdo->prepare("UPDATE quizzes SET quiz_name=?, level_id=?, is_timed=?, time_limit=? WHERE quiz_id=?")
-                    ->execute([trim($_POST['quiz_name']), $_POST['level_id'], isset($_POST['is_timed'])?1:0, (int)$_POST['time_limit'], $_POST['quiz_id']]);
+                $pdo->prepare("UPDATE quizzes SET quiz_name=?, level_id=?, is_timed=?, time_limit=?, quiz_password=? WHERE quiz_id=?")
+                    ->execute([trim($_POST['quiz_name']), $_POST['level_id'], isset($_POST['is_timed'])?1:0, (int)$_POST['time_limit'] * 60, $_POST['quiz_password'], $_POST['quiz_id']]);
                 $message = "Quiz Updated!";
             }
         } elseif ($action === 'toggle_publish') {
@@ -271,9 +276,10 @@ $intel_json = json_encode($intelligence_data);
                         <select name="level_id" id="quiz-level" class="w-full px-4 sm:px-5 py-3 rounded-2xl border-2 font-bold bg-white">
                             <?php foreach($levels as $l): ?><option value="<?php echo $l['level_id']; ?>"><?php echo $l['level_name']; ?></option><?php endforeach; ?>
                         </select>
+                        <input type="text" name="quiz_password" id="quiz-password" required placeholder="Post-Lesson Password" class="w-full px-4 sm:px-5 py-3 rounded-2xl border-2 font-bold outline-none focus:border-indigo-500">
                         <div class="p-4 bg-indigo-50 rounded-2xl border-2">
                             <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" name="is_timed" id="quiz-timed" class="w-5 h-5 accent-indigo-600" onchange="document.getElementById('limit-box').classList.toggle('hidden', !this.checked)"><span class="text-sm font-black">Timed</span></label>
-                            <div id="limit-box" class="hidden mt-4"><input type="number" name="time_limit" id="quiz-limit" value="300" class="w-full px-4 py-2 rounded-xl border-2 font-bold"></div>
+                            <div id="limit-box" class="hidden mt-4"><input type="number" name="time_limit" id="quiz-limit" value="5" placeholder="Minutes" class="w-full px-4 py-2 rounded-xl border-2 font-bold"></div>
                         </div>
                         <button type="submit" class="w-full kahoot-blue text-white py-3 sm:py-4 rounded-2xl font-black shadow-lg">SAVE QUIZ</button>
                     </form>
@@ -288,9 +294,14 @@ $intel_json = json_encode($intelligence_data);
                                 <td class="px-6 sm:px-8 py-4 sm:py-6 font-black text-gray-800"><?php echo htmlspecialchars($q['quiz_name']); ?></td>
                                 <td class="px-6 sm:px-8 py-4 sm:py-6 text-center font-bold text-gray-400"><?php echo $q['q_count']; ?>/10</td>
                                 <td class="px-6 sm:px-8 py-4 sm:py-6"><?php echo ($q['is_published']) ? '<span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter">LIVE 🚀</span>' : '<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter">DRAFT</span>'; ?></td>
-                                <td class="px-6 sm:px-8 py-4 sm:py-6 text-center font-black text-gray-500 text-sm"><?php echo $q['is_timed'] ? $q['time_limit'] . 's' : '<span class="opacity-30">Off</span>'; ?></td>
+                                <td class="px-6 sm:px-8 py-4 sm:py-6 text-center font-black text-gray-500 text-sm"><?php echo $q['is_timed'] ? ($q['time_limit'] / 60) . 'm' : '<span class="opacity-30">Off</span>'; ?></td>
                                 <td class="px-6 sm:px-8 py-4 sm:py-6 text-right space-x-2 sm:space-x-3 whitespace-nowrap">
                                     <button onclick='editQuiz(<?php echo json_encode($q); ?>)' class="text-indigo-600 font-black text-xs uppercase">Edit</button>
+                                    <form action="admin_dashboard.php" method="POST" class="inline m-0" onsubmit="return confirm('Are you sure you want to delete this quiz? This cannot be undone.')">
+                                        <input type="hidden" name="action" value="delete_quiz">
+                                        <input type="hidden" name="quiz_id" value="<?php echo $q['quiz_id']; ?>">
+                                        <button type="submit" class="text-red-500 font-black text-xs uppercase">Del</button>
+                                    </form>
                                     <button onclick="manageQuestions(<?php echo $q['quiz_id']; ?>, '<?php echo addslashes($q['quiz_name']); ?>', <?php echo $q['q_count']; ?>, <?php echo $q['is_published']; ?>)" class="kahoot-purple text-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl text-xs font-black shadow-md transition-all active:scale-95">BUILD</button>
                                 </td>
                             </tr>
@@ -309,7 +320,7 @@ $intel_json = json_encode($intelligence_data);
                             <input type="hidden" name="action" value="toggle_publish"><input type="hidden" name="quiz_id" id="pub-id"><input type="hidden" name="publish_status" id="pub-status">
                             <button type="submit" id="pub-btn" class="hidden w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 rounded-2xl font-black text-white shadow-xl transition-all uppercase text-sm"></button>
                         </form>
-                        <button type="button" onclick="closeBuilder()" class="kahoot-yellow text-white w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 rounded-2xl font-black shadow-xl uppercase transition-all text-sm">SAVE AS DRAFT</button>
+                        <button type="button" onclick="closeBuilder()" class="kahoot-yellow text-white w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 rounded-2xl font-black shadow-xl uppercase transition-all text-sm">SAVE</button>
                     </div>
                 </div>
                 
@@ -546,9 +557,10 @@ $intel_json = json_encode($intelligence_data);
             document.getElementById('quiz-id').value = q.quiz_id;
             document.getElementById('quiz-name').value = q.quiz_name;
             document.getElementById('quiz-level').value = q.level_id;
+            document.getElementById('quiz-password').value = q.quiz_password || '';
             document.getElementById('quiz-timed').checked = q.is_timed == 1;
             document.getElementById('limit-box').classList.toggle('hidden', q.is_timed != 1);
-            document.getElementById('quiz-limit').value = q.time_limit;
+            document.getElementById('quiz-limit').value = q.time_limit ? (q.time_limit / 60) : 5;
             window.scrollTo({top:0, behavior:'smooth'});
         }
 
