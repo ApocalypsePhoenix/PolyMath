@@ -106,6 +106,7 @@ if (isset($_SESSION['admin_msg'])) { $message = $_SESSION['admin_msg']; $message
 $levels = $pdo->query("SELECT * FROM levels ORDER BY difficulty_rank ASC")->fetchAll();
 $classes = $pdo->query("SELECT c.*, (SELECT COUNT(*) FROM users u WHERE u.class_id = c.class_id AND u.role = 'student') as student_count FROM classes c ORDER BY class_name ASC")->fetchAll();
 $quizzes = $pdo->query("SELECT q.*, l.level_name, l.difficulty_rank, (SELECT COUNT(*) FROM questions qn WHERE qn.quiz_id = q.quiz_id) as q_count FROM quizzes q JOIN levels l ON q.level_id = l.level_id ORDER BY q.created_at DESC")->fetchAll();
+$total_students = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'student'")->fetchColumn();
 
 // --- INTELLIGENCE HUB DATA PREP ---
 // 1. Map Questions
@@ -251,6 +252,17 @@ $intel_json = json_encode($intelligence_data);
             <script>setTimeout(() => { const el = document.getElementById('toast'); if(el) { el.classList.add('fade-out'); setTimeout(() => el.remove(), 500); } }, 20000);</script>
         <?php endif; ?>
 
+        <!-- Global Enrollment Metric -->
+        <div class="flex justify-center mb-8">
+            <div class="bg-white px-6 sm:px-8 py-3 sm:py-4 rounded-[1.5rem] sm:rounded-[2rem] shadow-sm border border-gray-200 flex items-center gap-4 text-center transition-all hover:shadow-md">
+                <div class="w-10 h-10 sm:w-12 sm:h-12 bg-indigo-50 text-indigo-500 rounded-xl sm:rounded-2xl flex items-center justify-center text-xl sm:text-2xl shrink-0">🎓</div>
+                <div class="text-left">
+                    <p class="text-[9px] sm:text-[10px] font-black text-gray-400 uppercase tracking-widest mb-0.5 sm:mb-1">Global Enrollment</p>
+                    <p class="text-xl sm:text-2xl font-black text-gray-800 leading-none"><?php echo $total_students; ?> <span class="text-xs sm:text-sm text-gray-500 font-bold uppercase tracking-tighter">Registered</span></p>
+                </div>
+            </div>
+        </div>
+
         <div class="flex flex-wrap sm:flex-nowrap justify-center bg-gray-200 p-2 rounded-2xl mb-8 md:mb-10 w-full sm:w-fit mx-auto gap-2">
             <button onclick="showTab('quizzes')" class="tab-btn w-full sm:w-auto px-6 md:px-8 py-3 rounded-xl font-black text-xs md:text-sm active" id="tab-quizzes">QUIZZES</button>
             <button onclick="showTab('classes')" class="tab-btn w-full sm:w-auto px-6 md:px-8 py-3 rounded-xl font-black text-xs md:text-sm" id="tab-classes">CLASSES</button>
@@ -296,11 +308,12 @@ $intel_json = json_encode($intelligence_data);
                                 <td class="px-6 sm:px-8 py-4 sm:py-6"><?php echo ($q['is_published']) ? '<span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter">LIVE 🚀</span>' : '<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter">DRAFT</span>'; ?></td>
                                 <td class="px-6 sm:px-8 py-4 sm:py-6 text-center font-black text-gray-500 text-sm"><?php echo $q['is_timed'] ? ($q['time_limit'] / 60) . 'm' : '<span class="opacity-30">Off</span>'; ?></td>
                                 <td class="px-6 sm:px-8 py-4 sm:py-6 text-right space-x-2 sm:space-x-3 whitespace-nowrap">
-                                    <button onclick='editQuiz(<?php echo json_encode($q); ?>)' class="text-indigo-600 font-black text-xs uppercase">Edit</button>
+                                    <a href="export_csv.php?quiz_id=<?php echo $q['quiz_id']; ?>" target="_blank" class="text-green-600 font-black text-xs uppercase hover:underline">CSV</a>
+                                    <button onclick='editQuiz(<?php echo json_encode($q); ?>)' class="text-indigo-600 font-black text-xs uppercase hover:underline">Edit</button>
                                     <form action="admin_dashboard.php" method="POST" class="inline m-0" onsubmit="return confirm('Are you sure you want to delete this quiz? This cannot be undone.')">
                                         <input type="hidden" name="action" value="delete_quiz">
                                         <input type="hidden" name="quiz_id" value="<?php echo $q['quiz_id']; ?>">
-                                        <button type="submit" class="text-red-500 font-black text-xs uppercase">Del</button>
+                                        <button type="submit" class="text-red-500 font-black text-xs uppercase hover:underline">Del</button>
                                     </form>
                                     <button onclick="manageQuestions(<?php echo $q['quiz_id']; ?>, '<?php echo addslashes($q['quiz_name']); ?>', <?php echo $q['q_count']; ?>, <?php echo $q['is_published']; ?>)" class="kahoot-purple text-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl text-xs font-black shadow-md transition-all active:scale-95">BUILD</button>
                                 </td>

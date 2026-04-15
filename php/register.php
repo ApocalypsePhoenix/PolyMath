@@ -14,27 +14,36 @@ try {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username']);
+    $student_name = trim($_POST['student_name'] ?? '');
+    $matric_number = trim($_POST['matric_number'] ?? '');
     $email = trim($_POST['email']);
     $password = $_POST['password'];
     $class_id = $_POST['class_id'];
 
-    if (!empty($username) && !empty($email) && !empty($password) && !empty($class_id)) {
-        // Hash the password for security
-        $password_hash = password_hash($password, PASSWORD_DEFAULT);
-
-        try {
-            $stmt = $pdo->prepare("INSERT INTO users (username, email, password_hash, class_id) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$username, $email, $password_hash, $class_id]);
-            
-            $message = "Registration successful! You can now <a href='login.php' class='underline'>login</a>.";
-            $messageType = "success";
-        } catch (PDOException $e) {
-            if ($e->getCode() == 23000) {
-                $message = "Username or Email already exists.";
-            } else {
-                $message = "An error occurred. Please try again.";
-            }
+    if (!empty($username) && !empty($student_name) && !empty($matric_number) && !empty($email) && !empty($password) && !empty($class_id)) {
+        
+        // Strict Alphanumeric Check for Matric Number
+        if (!preg_match('/^[a-zA-Z0-9]+$/', $matric_number)) {
+            $message = "Matric Number must be alphanumeric only (no spaces or symbols).";
             $messageType = "error";
+        } else {
+            // Hash the password for security
+            $password_hash = password_hash($password, PASSWORD_DEFAULT);
+
+            try {
+                $stmt = $pdo->prepare("INSERT INTO users (username, student_name, matric_number, email, password_hash, class_id) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$username, $student_name, strtoupper($matric_number), $email, $password_hash, $class_id]);
+                
+                $message = "Registration successful! You can now <a href='login.php' class='underline'>login</a>.";
+                $messageType = "success";
+            } catch (PDOException $e) {
+                if ($e->getCode() == 23000) {
+                    $message = "Username or Email already exists.";
+                } else {
+                    $message = "An error occurred. Please try again.";
+                }
+                $messageType = "error";
+            }
         }
     } else {
         $message = "Please fill in all fields.";
@@ -77,6 +86,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <label class="block text-sm font-semibold text-gray-700 mb-1">Username</label>
                     <input type="text" name="username" required 
                         class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Full Student Name</label>
+                    <input type="text" name="student_name" required placeholder="e.g. John Doe"
+                        class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Matric Number</label>
+                    <input type="text" name="matric_number" required placeholder="e.g. 21DDT21F1010" pattern="[A-Za-z0-9]+" title="Alphanumeric characters only"
+                        class="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all uppercase">
                 </div>
 
                 <div>

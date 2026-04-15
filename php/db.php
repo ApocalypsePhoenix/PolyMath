@@ -72,6 +72,10 @@ try {
     // Add JSON column to quiz_attempts to compress all choices into a single row
     $pdo->exec("ALTER TABLE `quiz_attempts` ADD COLUMN IF NOT EXISTS `answers_json` LONGTEXT DEFAULT NULL AFTER `time_taken_seconds`");
 
+    // NEW: Add Student Name and Matric Number columns to users table automatically
+    $pdo->exec("ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `student_name` VARCHAR(255) DEFAULT NULL AFTER `username`");
+    $pdo->exec("ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `matric_number` VARCHAR(50) DEFAULT NULL AFTER `student_name`");
+
     // Existing migrations
     $pdo->exec("ALTER TABLE `quizzes` ADD COLUMN IF NOT EXISTS `is_published` TINYINT(1) DEFAULT 0");
     $pdo->exec("ALTER TABLE `user_answers` ADD COLUMN IF NOT EXISTS `chosen_option` CHAR(1) DEFAULT NULL");

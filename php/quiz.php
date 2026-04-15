@@ -84,7 +84,25 @@ $questions_json = json_encode($questions);
                 <button onclick="prevStep()" id="btn-prev" class="px-6 py-4 md:px-8 rounded-2xl bg-white/10 hover:bg-white/20 font-black transition-all disabled:opacity-30 disabled:cursor-not-allowed uppercase text-sm md:text-base">Previous</button>
                 <div class="flex gap-4">
                     <button onclick="nextStep()" id="btn-next" class="px-6 py-4 md:px-8 rounded-2xl bg-white/20 hover:bg-white/30 font-black transition-all uppercase text-sm md:text-base">Next</button>
-                    <button onclick="finish()" id="btn-submit" class="hidden px-6 py-4 md:px-8 rounded-2xl bg-green-500 hover:bg-green-600 font-black shadow-xl transition-all uppercase text-sm md:text-base">Complete Quiz</button>
+                    <button onclick="showReviewModal()" id="btn-submit" class="hidden px-6 py-4 md:px-8 rounded-2xl bg-green-500 hover:bg-green-600 font-black shadow-xl transition-all uppercase text-sm md:text-base">Complete Quiz</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Review Modal -->
+        <div id="review-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-md">
+            <div class="bg-white text-gray-900 rounded-[3rem] p-8 md:p-10 max-w-lg w-full text-center shadow-2xl border-b-8 border-indigo-600 relative">
+                <button onclick="closeReviewModal()" class="absolute top-6 right-6 text-gray-400 hover:text-gray-800 font-black text-2xl">&times;</button>
+                <h3 class="text-3xl font-black mb-2 uppercase italic text-[#46178f]">Mission Review</h3>
+                <p id="review-msg" class="text-sm font-bold mb-6"></p>
+                
+                <div id="review-grid" class="grid grid-cols-5 gap-3 mb-8">
+                    <!-- JS will populate this -->
+                </div>
+                
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <button onclick="closeReviewModal()" class="w-full py-4 bg-gray-200 hover:bg-gray-300 text-gray-700 font-black rounded-2xl shadow-sm transition-all uppercase tracking-widest text-sm">Return</button>
+                    <button onclick="finish()" class="w-full py-4 bg-green-500 hover:bg-green-600 text-white font-black rounded-2xl shadow-xl transition-all uppercase tracking-widest text-sm">Submit Now</button>
                 </div>
             </div>
         </div>
@@ -158,6 +176,39 @@ $questions_json = json_encode($questions);
             if (idx > 0) { idx--; loadQ(); }
         }
 
+        function showReviewModal() {
+            const grid = document.getElementById('review-grid');
+            grid.innerHTML = '';
+            let allAnswered = true;
+
+            for(let i = 0; i < questions.length; i++) {
+                const isAnswered = userChoices[i] !== null;
+                if(!isAnswered) allAnswered = false;
+
+                const box = document.createElement('button');
+                // Clicking a box takes the user directly back to that question
+                box.onclick = () => { closeReviewModal(); idx = i; loadQ(); };
+                box.className = `p-3 rounded-xl font-black text-sm transition-all flex flex-col items-center justify-center active:scale-95 ${isAnswered ? 'bg-green-100 text-green-700 border-2 border-green-500 hover:bg-green-200' : 'bg-red-50 text-red-500 border-2 border-red-300 border-dashed hover:bg-red-100'}`;
+                box.innerHTML = `<span>${i + 1}</span>`;
+                grid.appendChild(box);
+            }
+
+            const msg = document.getElementById('review-msg');
+            if(allAnswered) {
+                msg.innerText = "All challenges answered! Ready to submit?";
+                msg.className = "text-green-600 font-bold mb-6 uppercase tracking-widest text-xs";
+            } else {
+                msg.innerText = "Warning: You have unanswered challenges!";
+                msg.className = "text-red-500 font-bold mb-6 uppercase tracking-widest text-xs animate-pulse";
+            }
+
+            document.getElementById('review-modal').classList.remove('hidden');
+        }
+
+        function closeReviewModal() {
+            document.getElementById('review-modal').classList.add('hidden');
+        }
+
         async function finish() {
             if (isFinishing) return;
             isFinishing = true;
@@ -166,6 +217,7 @@ $questions_json = json_encode($questions);
             
             // Lock UI
             document.getElementById('quiz-ui').classList.add('opacity-50', 'pointer-events-none');
+            document.getElementById('review-modal').classList.add('hidden');
 
             // Calculate score and build final payload from userChoices array
             let finalScore = 0;
