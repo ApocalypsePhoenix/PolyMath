@@ -116,13 +116,35 @@ try {
         <script>setTimeout(() => { document.getElementById('toast').style.display = 'none'; }, 5000);</script>
     <?php endif; ?>
 
+    <!-- Info Modal -->
+    <div id="info-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-md">
+        <div class="bg-white rounded-[2rem] sm:rounded-[3rem] p-6 sm:p-10 max-w-2xl w-full shadow-2xl border-b-8 border-[#1368ce] relative max-h-[90vh] overflow-y-auto">
+            <button onclick="closeInfoModal()" class="absolute top-4 right-5 sm:top-6 sm:right-6 text-gray-400 hover:text-gray-800 font-black text-2xl">&times;</button>
+            <h3 class="text-2xl sm:text-3xl font-black mb-2 text-[#1368ce] uppercase italic">Poly Math</h3>
+            <p class="font-black text-base sm:text-lg text-gray-800 mb-6">Smart Learning for Polytechnic Students</p>
+            <div class="text-gray-600 space-y-4 text-xs sm:text-sm leading-relaxed font-bold text-left">
+                <p>Poly Math is an excellent way for polytechnic students to improve their math skills while learning in a fun and interactive environment. The game is designed to be challenging enough to keep students engaged, yet simple to understand and easy to use. With a wide range of math questions and quizzes, Poly Math helps students strengthen their problem-solving abilities and build confidence in mathematics.</p>
+                <p>Poly Math is a valuable addition to any polytechnic learning journey, helping students practice and master essential math concepts effectively and enjoyably.</p>
+                <p>In Poly Math, students can unlock new levels and earn badges by completing daily math exercises. The questions cover a variety of topics relevant to polytechnic studies, including algebra, calculations, problem-solving, and more. Students earn points for correct answers, encouraging consistent practice and improvement.</p>
+                
+                <p class="font-black text-sm sm:text-base text-gray-800 pt-2 uppercase tracking-tight">Why choose Poly Math?</p>
+                <p>Poly Math offers customized math practice specially designed for polytechnic students, along with daily new challenges to make learning more engaging, effective, and enjoyable.</p>
+                
+                <div class="mt-8 p-4 bg-blue-50 rounded-xl sm:rounded-2xl border border-blue-100">
+                    <p class="text-[10px] sm:text-xs font-black text-blue-500 uppercase tracking-widest text-center">This innovation was made for poli students by Madam Emilawati Binti Othman, Madam Nadiana binti Ariffin & Madam Natrah binti Sahi</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <nav class="poly-gradient text-white shadow-2xl p-4 sm:p-5 sticky top-0 z-40">
         <div class="max-w-7xl mx-auto flex justify-between items-center">
             <div class="flex items-center gap-2 sm:gap-3">
                 <div class="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg transform -rotate-3"><span class="text-[#46178f] font-black text-xl sm:text-2xl">P</span></div>
                 <h1 class="text-2xl sm:text-3xl font-black italic uppercase tracking-tighter">PolyMath</h1>
             </div>
-            <div class="flex items-center gap-4 sm:gap-6">
+            <div class="flex items-center gap-3 sm:gap-6">
+                <button onclick="openInfoModal()" class="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center font-black italic transition-all shadow-md active:scale-95 text-lg cursor-pointer" title="About PolyMath">i</button>
                 <div class="text-right hidden sm:block">
                     <p class="text-[10px] font-black uppercase opacity-60">Warrior</p>
                     <p class="text-sm font-black"><?php echo htmlspecialchars($user_data['username']); ?></p>
@@ -256,6 +278,9 @@ try {
         function closePasswordModal() {
             document.getElementById('password-modal').classList.add('hidden');
         }
+        
+        function openInfoModal() { document.getElementById('info-modal').classList.remove('hidden'); }
+        function closeInfoModal() { document.getElementById('info-modal').classList.add('hidden'); }
     </script>
 </body>
 </html>

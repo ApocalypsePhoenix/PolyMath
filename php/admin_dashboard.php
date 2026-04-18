@@ -91,6 +91,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($action === 'delete_question') {
             $qid = $_POST['quiz_id'];
             $pdo->prepare("DELETE FROM questions WHERE question_id = ?")->execute([$_POST['question_id']]);
+            
+            // Auto-revert to draft if questions fall below the 10 required
+            $cnt = $pdo->prepare("SELECT COUNT(*) FROM questions WHERE quiz_id = ?");
+            $cnt->execute([$qid]);
+            if ($cnt->fetchColumn() < 10) {
+                $pdo->prepare("UPDATE quizzes SET is_published = 0 WHERE quiz_id = ?")->execute([$qid]);
+            }
+            
             $message = "Question Deleted!";
         }
 
@@ -242,8 +250,35 @@ $intel_json = json_encode($intelligence_data);
         </div>
     </div>
 
+    <!-- Info Modal -->
+    <div id="info-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-md">
+        <div class="bg-white rounded-[2rem] sm:rounded-[3rem] p-6 sm:p-10 max-w-2xl w-full shadow-2xl border-b-8 border-[#46178f] relative max-h-[90vh] overflow-y-auto">
+            <button onclick="closeInfoModal()" class="absolute top-4 right-5 sm:top-6 sm:right-6 text-gray-400 hover:text-gray-800 font-black text-2xl">&times;</button>
+            <h3 class="text-2xl sm:text-3xl font-black mb-2 text-[#46178f] uppercase italic">Poly Math</h3>
+            <p class="font-black text-base sm:text-lg text-gray-800 mb-6">Smart Learning for Polytechnic Students</p>
+            <div class="text-gray-600 space-y-4 text-xs sm:text-sm leading-relaxed font-bold text-left">
+                <p>Poly Math is an excellent way for polytechnic students to improve their math skills while learning in a fun and interactive environment. The game is designed to be challenging enough to keep students engaged, yet simple to understand and easy to use. With a wide range of math questions and quizzes, Poly Math helps students strengthen their problem-solving abilities and build confidence in mathematics.</p>
+                <p>Poly Math is a valuable addition to any polytechnic learning journey, helping students practice and master essential math concepts effectively and enjoyably.</p>
+                <p>In Poly Math, students can unlock new levels and earn badges by completing daily math exercises. The questions cover a variety of topics relevant to polytechnic studies, including algebra, calculations, problem-solving, and more. Students earn points for correct answers, encouraging consistent practice and improvement.</p>
+                
+                <p class="font-black text-sm sm:text-base text-gray-800 pt-2 uppercase tracking-tight">Why choose Poly Math?</p>
+                <p>Poly Math offers customized math practice specially designed for polytechnic students, along with daily new challenges to make learning more engaging, effective, and enjoyable.</p>
+                
+                <div class="mt-8 p-4 bg-indigo-50 rounded-xl sm:rounded-2xl border border-indigo-100">
+                    <p class="text-[10px] sm:text-xs font-black text-indigo-400 uppercase tracking-widest text-center">This innovation was made for poli students by Madam Emilawati Binti Othman, Madam Nadiana binti Ariffin & Madam Natrah binti Sahi</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <nav class="kahoot-purple text-white shadow-xl p-4 sm:p-5 sticky top-0 z-40">
-        <div class="max-w-7xl mx-auto flex justify-between items-center"><h1 class="text-xl sm:text-2xl font-black italic tracking-tighter uppercase">PolyMath <span class="font-light text-fuchsia-300">Command</span></h1><a href="logout.php" class="bg-red-500 hover:bg-red-600 px-4 py-2 sm:px-6 sm:py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all">LOGOUT</a></div>
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <h1 class="text-xl sm:text-2xl font-black italic tracking-tighter uppercase">PolyMath <span class="font-light text-fuchsia-300">Command</span></h1>
+            <div class="flex items-center gap-3 sm:gap-4">
+                <button onclick="openInfoModal()" class="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 hover:bg-white/30 rounded-xl flex items-center justify-center font-black italic transition-all shadow-md active:scale-95 text-lg cursor-pointer" title="About PolyMath">i</button>
+                <a href="logout.php" class="bg-red-500 hover:bg-red-600 px-4 py-2 sm:px-6 sm:py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all">LOGOUT</a>
+            </div>
+        </div>
     </nav>
 
     <main class="max-w-7xl mx-auto p-4 sm:p-6 md:p-10">
@@ -678,6 +713,10 @@ $intel_json = json_encode($intelligence_data);
             }
             closeCrop();
         }
+
+        // Info Modal Handlers
+        function openInfoModal() { document.getElementById('info-modal').classList.remove('hidden'); }
+        function closeInfoModal() { document.getElementById('info-modal').classList.add('hidden'); }
     </script>
 </body>
 </html>
